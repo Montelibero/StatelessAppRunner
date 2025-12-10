@@ -20,6 +20,16 @@ if not DEFAULT_SECRET:
     DEFAULT_SECRET = secrets.token_urlsafe(32)
     logging.warning(f"No SECRET_KEY set. Generated random secret: {DEFAULT_SECRET}")
 
+# Initialize VALID_KEYS with DEFAULT_SECRET
+VALID_KEYS = {DEFAULT_SECRET}
+
+# Add keys from SECRET_KEYS environment variable
+SECRET_KEYS_ENV = os.getenv("SECRET_KEYS")
+if SECRET_KEYS_ENV:
+    extra_keys = [k.strip() for k in SECRET_KEYS_ENV.split(",") if k.strip()]
+    VALID_KEYS.update(extra_keys)
+    logging.info(f"Loaded {len(extra_keys)} additional keys from SECRET_KEYS")
+
 DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "http://mtlminiapps.us")
 
 # --- ЛОГИКА (Core Logic) ---
@@ -57,13 +67,22 @@ async def run_app(d: str = None, s: str = None):
         </body></html>
         """
 
-    # 1. Проверяем подпись (Используем ключ сервера)
-    expected_sign = sign_data(d, DEFAULT_SECRET)
+    # 1. Проверяем подпись (Check signature against all valid keys)
+    matched_key = None
+    for key in VALID_KEYS:
+        expected_sign = sign_data(d, key)
+        if hmac.compare_digest(expected_sign, s):
+            matched_key = key
+            break
 
-    if not hmac.compare_digest(expected_sign, s):
+    if not matched_key:
         # На случай, если ссылка была сгенерирована другим ключом, но мы хотим проверить целостность
         # Здесь мы строго отклоняем, если подпись не совпадает с КЛЮЧОМ СЕРВЕРА
         raise HTTPException(status_code=403, detail="Integrity Check Failed (Invalid Signature)")
+
+    # Log successful access with key prefix
+    key_prefix = matched_key[:5] if len(matched_key) >= 5 else matched_key
+    logging.info(f"Access granted using key starting with: {key_prefix}")
 
     try:
         # 2. Декодируем
@@ -105,7 +124,7 @@ async def admin_page():
 
         <div class="form-group">
             <label>Секретный ключ (Secret Key)</label>
-            <input type="text" id="key" placeholder="Оставьте пустым для использования ключа сервера">
+            <input type="password" id="key" placeholder="Введите ваш секретный ключ">
             <div class="hint">Важно: Ссылка откроется только на сервере, у которого этот ключ совпадает с переменной окружения.</div>
         </div>
 
@@ -157,16 +176,15 @@ async def admin_page():
 
 class GenerateRequest(BaseModel):
     domain: str
-    key: Optional[str] = None
+    key: str
     html: str
 
 @app.post("/api/generate")
 async def generate_api(req: GenerateRequest):
+    if req.key not in VALID_KEYS:
+        raise HTTPException(status_code=403, detail="Invalid Key. You must provide a valid server key.")
+
     payload = compress_payload(req.html)
-
-    # Use provided key or fall back to default secret
-    signing_key = req.key if req.key else DEFAULT_SECRET
-
-    signature = sign_data(payload, signing_key)
+    signature = sign_data(payload, req.key)
     full_url = f"{req.domain}/?d={payload}&s={signature}"
     return {"url": full_url}

@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: miniapps_runner
+    ports:
+      - "80:80"
+    environment:
+      # Ключ, которым сервер будет проверять входящие ссылки
+      - SECRET_KEY=my_super_secure_production_key_2024
+      # Домен по умолчанию для админки
+      - APP_DOMAIN=http://mtlminiapps.us
+    restart: always

@@ -105,7 +105,7 @@ async def admin_page():
 
         <div class="form-group">
             <label>Секретный ключ (Secret Key)</label>
-            <input type="text" id="key" value="{DEFAULT_SECRET}">
+            <input type="text" id="key" placeholder="Оставьте пустым для использования ключа сервера">
             <div class="hint">Важно: Ссылка откроется только на сервере, у которого этот ключ совпадает с переменной окружения.</div>
         </div>
 
@@ -157,12 +157,16 @@ async def admin_page():
 
 class GenerateRequest(BaseModel):
     domain: str
-    key: str
+    key: Optional[str] = None
     html: str
 
 @app.post("/api/generate")
 async def generate_api(req: GenerateRequest):
     payload = compress_payload(req.html)
-    signature = sign_data(payload, req.key)
+
+    # Use provided key or fall back to default secret
+    signing_key = req.key if req.key else DEFAULT_SECRET
+
+    signature = sign_data(payload, signing_key)
     full_url = f"{req.domain}/?d={payload}&s={signature}"
     return {"url": full_url}

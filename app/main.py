@@ -3,6 +3,8 @@ import zlib
 import base64
 import hmac
 import hashlib
+import secrets
+import logging
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, Form
@@ -13,7 +15,11 @@ from pydantic import BaseModel
 app = FastAPI(title="Stateless App Runner")
 
 # Настройки по умолчанию
-DEFAULT_SECRET = os.getenv("SECRET_KEY", "change_me_to_something_secure")
+DEFAULT_SECRET = os.getenv("SECRET_KEY")
+if not DEFAULT_SECRET:
+    DEFAULT_SECRET = secrets.token_urlsafe(32)
+    logging.warning(f"No SECRET_KEY set. Generated random secret: {DEFAULT_SECRET}")
+
 DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "http://mtlminiapps.us")
 
 # --- ЛОГИКА (Core Logic) ---

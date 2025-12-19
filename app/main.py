@@ -5,6 +5,7 @@ import hmac
 import hashlib
 import secrets
 import logging
+import re
 from typing import Optional
 
 from fastapi import FastAPI, Request, HTTPException, Form
@@ -52,6 +53,82 @@ def decompress_payload(payload: str) -> str:
 
     compressed_data = base64.urlsafe_b64decode(payload)
     return zlib.decompress(compressed_data).decode('utf-8')
+
+def remove_js_comments(text: str) -> str:
+    """
+    Parses JS content to remove // comments while respecting quotes.
+    Handles ', ", and ` quotes.
+    """
+    out = []
+    i = 0
+    n = len(text)
+    in_quote = None
+
+    while i < n:
+        char = text[i]
+
+        # Check for quote start/end
+        if in_quote:
+            if char == in_quote:
+                # Check for escaped quote (count preceding backslashes)
+                escaped = False
+                j = i - 1
+                backslashes = 0
+                while j >= 0 and text[j] == '\\':
+                    backslashes += 1
+                    j -= 1
+                if backslashes % 2 == 0:
+                    in_quote = None
+            out.append(char)
+            i += 1
+            continue
+
+        if char in ('"', "'", '`'):
+            in_quote = char
+            out.append(char)
+            i += 1
+            continue
+
+        # Check for // comment
+        if char == '/' and i + 1 < n and text[i+1] == '/':
+            # Found comment, skip until newline
+            i += 2
+            while i < n and text[i] != '\n':
+                i += 1
+            # We skip the comment but continue loop (next char is newline or end)
+            continue
+
+        out.append(char)
+        i += 1
+
+    return "".join(out)
+
+def minify_html(html_content: str) -> str:
+    """
+    Simple minification:
+    1. Remove HTML comments <!-- ... -->
+    2. Remove JS comments // ... ONLY inside <script> tags using a parser.
+    3. Collapse whitespace
+    """
+    # 1. Remove HTML comments
+    html_content = re.sub(r'<!--.*?-->', '', html_content, flags=re.DOTALL)
+
+    # 2. Process <script> tags to remove JS comments
+    def process_script(match):
+        open_tag = match.group(1)
+        content = match.group(2)
+        close_tag = match.group(3)
+        return open_tag + remove_js_comments(content) + close_tag
+
+    # Match <script...>content</script>
+    # Use DOTALL so . matches newlines in content
+    # Use IGNORECASE for <SCRIPT>
+    html_content = re.sub(r'(<script[^>]*>)(.*?)(</script>)', process_script, html_content, flags=re.DOTALL | re.IGNORECASE)
+
+    # 3. Collapse whitespace (newlines, tabs, multiple spaces -> single space)
+    html_content = re.sub(r'\s+', ' ', html_content)
+
+    return html_content.strip()
 
 # --- ENDPOINTS ---
 
@@ -133,7 +210,11 @@ async def admin_page():
             <textarea id="code" placeholder="<!DOCTYPE html>..."></textarea>
         </div>
 
-        <button onclick="generate()">Сгенерировать ссылку</button>
+        <div class="form-group">
+            <label><input type="checkbox" id="compress"> Сжимать</label>
+        </div>
+
+        <button onclick="generate()">Сгенерировать ссылку</button> <span>ограничение в тг 8193</span>
 
         <div id="result">
             <h3>Ваша ссылка (<span id="len-info">0</span> байт):</h3>
@@ -146,6 +227,7 @@ async def admin_page():
                 const domain = document.getElementById('domain').value.replace(/\\/$/, "");
                 const key = document.getElementById('key').value;
                 const code = document.getElementById('code').value;
+                const compress = document.getElementById('compress').checked;
 
                 if (!code) {{ alert('Введите HTML код'); return; }}
 
@@ -153,7 +235,7 @@ async def admin_page():
                 const response = await fetch('/api/generate', {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ domain, key, html: code }})
+                    body: JSON.stringify({{ domain, key, html: code, compress }})
                 }});
 
                 const data = await response.json();
@@ -178,13 +260,18 @@ class GenerateRequest(BaseModel):
     domain: str
     key: str
     html: str
+    compress: bool = False
 
 @app.post("/api/generate")
 async def generate_api(req: GenerateRequest):
     if req.key not in VALID_KEYS:
         raise HTTPException(status_code=403, detail="Invalid Key. You must provide a valid server key.")
 
-    payload = compress_payload(req.html)
+    html_to_process = req.html
+    if req.compress:
+        html_to_process = minify_html(html_to_process)
+
+    payload = compress_payload(html_to_process)
     signature = sign_data(payload, req.key)
     full_url = f"{req.domain}/?d={payload}&s={signature}"
     return {"url": full_url}

@@ -125,6 +125,19 @@ def minify_html(html_content: str) -> str:
     # Use IGNORECASE for <SCRIPT>
     html_content = re.sub(r'(<script[^>]*>)(.*?)(</script>)', process_script, html_content, flags=re.DOTALL | re.IGNORECASE)
 
+    # 3. Remove CSS comments /* ... */
+    # We apply this globally as it's generally safe, or we could target <style>
+    # Given the user request, removing them from <style> blocks is safer.
+    def process_style(match):
+        open_tag = match.group(1)
+        content = match.group(2)
+        close_tag = match.group(3)
+        # Remove /* ... */ comments
+        content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
+        return open_tag + content + close_tag
+
+    html_content = re.sub(r'(<style[^>]*>)(.*?)(</style>)', process_style, html_content, flags=re.DOTALL | re.IGNORECASE)
+
     # 3. Collapse whitespace (newlines, tabs, multiple spaces -> single space)
     html_content = re.sub(r'\s+', ' ', html_content)
 

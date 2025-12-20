@@ -31,7 +31,7 @@ if SECRET_KEYS_ENV:
     VALID_KEYS.update(extra_keys)
     logging.info(f"Loaded {len(extra_keys)} additional keys from SECRET_KEYS")
 
-DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "http://mtlminiapps.us")
+DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "https://mtlminiapps.us")
 
 # --- ЛОГИКА (Core Logic) ---
 
@@ -184,93 +184,14 @@ async def run_app(d: str = None, s: str = None):
 
 # --- ADMIN PANEL ---
 
+templates = Jinja2Templates(directory="app/templates")
+
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page():
-    # Простая HTML форма прямо внутри кода для удобства
-    html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Link Generator</title>
-        <style>
-            body {{ font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }}
-            .form-group {{ margin-bottom: 1rem; }}
-            label {{ display: block; margin-bottom: 0.5rem; font-weight: bold; }}
-            input, textarea {{ width: 100%; padding: 0.5rem; box-sizing: border-box; }}
-            textarea {{ height: 300px; font-family: monospace; }}
-            button {{ padding: 1rem 2rem; background: #007bff; color: white; border: none; cursor: pointer; font-size: 1rem; }}
-            button:hover {{ background: #0056b3; }}
-            #result {{ margin-top: 2rem; padding: 1rem; background: #f8f9fa; border: 1px solid #ddd; word-break: break-all; display: none; }}
-            .hint {{ font-size: 0.8rem; color: #666; }}
-        </style>
-    </head>
-    <body>
-        <h1>Генератор ссылок</h1>
-
-        <div class="form-group">
-            <label>Домен (Base URL)</label>
-            <input type="text" id="domain" value="{DEFAULT_DOMAIN}">
-        </div>
-
-        <div class="form-group">
-            <label>Секретный ключ (Secret Key)</label>
-            <input type="password" id="key" placeholder="Введите ваш секретный ключ">
-            <div class="hint">Важно: Ссылка откроется только на сервере, у которого этот ключ совпадает с переменной окружения.</div>
-        </div>
-
-        <div class="form-group">
-            <label>HTML Код приложения</label>
-            <textarea id="code" placeholder="<!DOCTYPE html>..."></textarea>
-        </div>
-
-        <div class="form-group">
-            <label><input type="checkbox" id="compress"> Сжимать</label>
-        </div>
-
-        <button onclick="generate()">Сгенерировать ссылку</button> <span>ограничение в тг 8193</span>
-
-        <div id="result">
-            <h3>Ваша ссылка (<span id="len-info">0</span> байт):</h3>
-            <a id="link-anchor" href="#" target="_blank">Открыть</a>
-            <p id="link-text"></p>
-        </div>
-
-        <script>
-            async function generate() {{
-                const domain = document.getElementById('domain').value.replace(/\\/$/, "");
-                const key = document.getElementById('key').value;
-                const code = document.getElementById('code').value;
-                const compress = document.getElementById('compress').checked;
-
-                if (!code) {{ alert('Введите HTML код'); return; }}
-
-                // Отправляем на сервер для генерации (чтобы zlib был идентичен)
-                const response = await fetch('/api/generate', {{
-                    method: 'POST',
-                    headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ domain, key, html: code, compress }})
-                }});
-
-                const data = await response.json();
-
-                const resultDiv = document.getElementById('result');
-                const linkText = document.getElementById('link-text');
-                const linkAnchor = document.getElementById('link-anchor');
-                const lenInfo = document.getElementById('len-info');
-
-                resultDiv.style.display = 'block';
-                linkText.innerText = data.url;
-                linkAnchor.href = data.url;
-                lenInfo.innerText = data.url.length;
-            }}
-        </script>
-    </body>
-    </html>
-    """
-    return html
+async def admin_page(request: Request):
+    return templates.TemplateResponse(request=request, name="admin.html")
 
 class GenerateRequest(BaseModel):
-    domain: str
+    domain: Optional[str] = None
     key: str
     html: str
     compress: bool = False
@@ -286,5 +207,9 @@ async def generate_api(req: GenerateRequest):
 
     payload = compress_payload(html_to_process)
     signature = sign_data(payload, req.key)
-    full_url = f"{req.domain}/?d={payload}&s={signature}"
+
+    domain = req.domain if req.domain else DEFAULT_DOMAIN
+    domain = domain.rstrip('/')
+
+    full_url = f"{domain}/?d={payload}&s={signature}"
     return {"url": full_url}

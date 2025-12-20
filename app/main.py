@@ -184,7 +184,8 @@ async def run_app(d: str = None, s: str = None):
 
 # --- ADMIN PANEL ---
 
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):

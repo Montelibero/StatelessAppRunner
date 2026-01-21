@@ -2,8 +2,8 @@ import pytest
 import os
 import sqlite3
 from fastapi.testclient import TestClient
-from app.main import app, VALID_KEYS
-import app.db as db_module
+from main import app, VALID_KEYS
+import db as db_module
 
 client = TestClient(app)
 

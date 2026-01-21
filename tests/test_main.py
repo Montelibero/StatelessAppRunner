@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from .main import app, DEFAULT_SECRET
+from main import app, DEFAULT_SECRET
 
 client = TestClient(app)
 

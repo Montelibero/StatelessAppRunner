@@ -13,7 +13,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from app.db import init_db, save_app, get_app, list_apps, delete_app
+from db import init_db, save_app, get_app, list_apps, delete_app
 
 app = FastAPI(title="Stateless App Runner")
 

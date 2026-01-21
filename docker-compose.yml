@@ -11,4 +11,6 @@ services:
       - SECRET_KEY=my_super_secure_production_key_2024
       # Домен по умолчанию для админки
       - APP_DOMAIN=http://mtlminiapps.us
+    volumes:
+      - ./app/data:/app/app/data
     restart: always

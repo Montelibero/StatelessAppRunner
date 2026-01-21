@@ -13,7 +13,12 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
+from app.db import init_db, save_app, get_app, list_apps, delete_app
+
 app = FastAPI(title="Stateless App Runner")
+
+# Ensure DB is initialized
+init_db()
 
 # Настройки по умолчанию
 DEFAULT_SECRET = os.getenv("SECRET_KEY")
@@ -181,6 +186,16 @@ async def run_app(d: str = None, s: str = None):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Decoding error: {str(e)}")
 
+@app.get("/p/{slug}", response_class=HTMLResponse)
+async def run_persistent_app(slug: str):
+    """
+    Runs a persistent app saved in the database.
+    """
+    app_data = get_app(slug)
+    if not app_data:
+        raise HTTPException(status_code=404, detail="App not found")
+
+    return HTMLResponse(content=app_data['html_content'])
 
 # --- ADMIN PANEL ---
 
@@ -214,3 +229,44 @@ async def generate_api(req: GenerateRequest):
 
     full_url = f"{domain}/?d={payload}&s={signature}"
     return {"url": full_url}
+
+# --- PERSISTENT APPS API ---
+
+class SaveAppRequest(BaseModel):
+    key: str
+    slug: str
+    html: str
+
+class DeleteAppRequest(BaseModel):
+    key: str
+
+@app.post("/api/apps")
+async def save_app_api(req: SaveAppRequest):
+    if req.key not in VALID_KEYS:
+        raise HTTPException(status_code=403, detail="Invalid Key")
+
+    if not req.slug.strip():
+        raise HTTPException(status_code=400, detail="Slug cannot be empty")
+
+    save_app(req.slug.strip(), req.html)
+    return {"status": "ok", "slug": req.slug}
+
+@app.get("/api/apps")
+async def list_apps_api():
+    apps = list_apps()
+    return apps
+
+@app.get("/api/apps/{slug}")
+async def get_app_api(slug: str):
+    app_data = get_app(slug)
+    if not app_data:
+        raise HTTPException(status_code=404, detail="App not found")
+    return app_data
+
+@app.delete("/api/apps/{slug}")
+async def delete_app_api(slug: str, req: DeleteAppRequest):
+    if req.key not in VALID_KEYS:
+        raise HTTPException(status_code=403, detail="Invalid Key")
+
+    delete_app(slug)
+    return {"status": "deleted", "slug": slug}

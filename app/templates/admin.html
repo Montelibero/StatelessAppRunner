@@ -127,14 +127,22 @@
                         </div>
                     </div>
                     <div class="level-right">
-                        <span class="tag is-light is-rounded font-monospace">v2.0 Beta</span>
+                        <span class="tag is-light is-rounded font-monospace">v2.1 Beta</span>
                     </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="tabs is-centered">
+                    <ul>
+                        <li class="is-active" id="tab-generate" onclick="switchTab('generate')"><a>Генератор</a></li>
+                        <li id="tab-saved" onclick="switchTab('saved')"><a>Сохраненные (DB)</a></li>
+                    </ul>
                 </div>
 
                 <!-- Form -->
                 <div class="block">
 
-                    <!-- Secret Key -->
+                    <!-- Secret Key (Global) -->
                     <div class="field">
                         <label class="label">
                             Секретный ключ
@@ -173,56 +181,78 @@
                         </div>
                     </div>
 
-                    <!-- Generate Button -->
-                    <div class="field mt-6">
-                        <div class="control">
-                            <button id="generate-btn" class="button is-link is-fullwidth is-medium" onclick="generate()">
-                                <span class="icon">
-                                    <i class="ph ph-magic-wand"></i>
-                                </span>
-                                <span>Сгенерировать ссылку</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Result Area -->
-                <article class="message is-link mt-6 is-hidden animate-slide-in" id="result">
-                    <div class="message-header">
-                        <p>Готово</p>
-
-                        <!-- Limit Indicator inside Header -->
-                        <div class="is-flex is-align-items-center">
-                            <span class="is-size-7 mr-2">
-                                <span id="len-info">0</span> / 8193 байт
-                            </span>
-                            <div class="limit-progress-wrapper">
-                                <div id="limit-bar" class="limit-progress-bar"></div>
+                    <!-- Generate Tab Actions -->
+                    <div id="content-generate">
+                        <div class="field mt-6">
+                            <div class="control">
+                                <button id="generate-btn" class="button is-link is-fullwidth is-medium" onclick="generate()">
+                                    <span class="icon">
+                                        <i class="ph ph-magic-wand"></i>
+                                    </span>
+                                    <span>Сгенерировать ссылку</span>
+                                </button>
                             </div>
                         </div>
-                    </div>
-                    <div class="message-body">
-                        <div class="field has-addons">
-                            <div class="control is-expanded">
-                                <div class="box has-background-scheme-main-ter p-3"
-                                     style="border: 1px solid var(--bulma-border); word-break: break-all; max-height: 200px; overflow-y: auto; font-family: monospace;">
-                                    <span id="link-text" class="is-size-7"></span>
+
+                        <!-- Result Area (Generate) -->
+                        <article class="message is-link mt-6 is-hidden animate-slide-in" id="result">
+                            <div class="message-header">
+                                <p>Готово</p>
+                                <!-- Limit Indicator inside Header -->
+                                <div class="is-flex is-align-items-center">
+                                    <span class="is-size-7 mr-2">
+                                        <span id="len-info">0</span> / 8193 байт
+                                    </span>
+                                    <div class="limit-progress-wrapper">
+                                        <div id="limit-bar" class="limit-progress-bar"></div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                            <div class="message-body">
+                                <div class="field has-addons">
+                                    <div class="control is-expanded">
+                                        <div class="box has-background-scheme-main-ter p-3"
+                                             style="border: 1px solid var(--bulma-border); word-break: break-all; max-height: 200px; overflow-y: auto; font-family: monospace;">
+                                            <span id="link-text" class="is-size-7"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="buttons is-right">
+                                    <a id="link-anchor" href="#" target="_blank" class="button is-small is-outlined is-link">
+                                        <span class="icon"><i class="ph ph-arrow-square-out"></i></span>
+                                        <span>Открыть</span>
+                                    </a>
+                                    <button class="button is-small is-link" onclick="copyLink()">
+                                        <span class="icon"><i class="ph ph-copy"></i></span>
+                                        <span>Копировать</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+                    </div>
 
-                        <div class="buttons is-right">
-                            <a id="link-anchor" href="#" target="_blank" class="button is-small is-outlined is-link">
-                                <span class="icon"><i class="ph ph-arrow-square-out"></i></span>
-                                <span>Открыть</span>
-                            </a>
-                            <button class="button is-small is-link" onclick="copyLink()">
-                                <span class="icon"><i class="ph ph-copy"></i></span>
-                                <span>Копировать</span>
-                            </button>
+                    <!-- Saved Apps Tab Actions -->
+                    <div id="content-saved" class="is-hidden">
+                        <div class="field has-addons mt-4">
+                            <div class="control is-expanded">
+                                <input class="input" type="text" id="app-slug" placeholder="Имя ссылки (например, my-app)">
+                            </div>
+                            <div class="control">
+                                <button class="button is-primary" id="save-btn" onclick="saveApp()">
+                                    <span class="icon"><i class="ph ph-floppy-disk"></i></span>
+                                    <span>Сохранить на сервер</span>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="help mb-5">Приложение будет доступно по адресу <code>/p/{имя}</code></p>
+
+                        <h2 class="title is-5 mt-6">Сохраненные приложения</h2>
+                        <div id="apps-list" class="mt-4">
+                            <p class="has-text-grey-light is-italic">Загрузка...</p>
                         </div>
                     </div>
-                </article>
+
+                </div>
 
             </div>
 
@@ -253,8 +283,6 @@
         function showToast(message, type = 'success') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
-
-            // Map types to Bulma colors
             const colorClass = type === 'error' ? 'is-danger' : 'is-success';
             const iconClass = type === 'error' ? 'ph-warning-circle' : 'ph-check-circle';
 
@@ -266,20 +294,33 @@
                     <span class="has-text-weight-medium">${message}</span>
                 </div>
             `;
-
             container.appendChild(toast);
-
             setTimeout(() => {
                 toast.style.opacity = '0';
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
         }
 
+        function switchTab(tabName) {
+            // Tabs
+            document.querySelectorAll('.tabs li').forEach(li => li.classList.remove('is-active'));
+            document.getElementById(`tab-${tabName}`).classList.add('is-active');
+
+            // Content
+            document.getElementById('content-generate').classList.add('is-hidden');
+            document.getElementById('content-saved').classList.add('is-hidden');
+            document.getElementById(`content-${tabName}`).classList.remove('is-hidden');
+
+            if (tabName === 'saved') {
+                loadApps();
+            }
+        }
+
+        // --- Generate Logic ---
+
         async function generate() {
             const btn = document.getElementById('generate-btn');
             const originalBtnContent = btn.innerHTML;
-
-            // Loading State
             btn.disabled = true;
             btn.classList.add('is-loading');
 
@@ -294,30 +335,18 @@
             }
 
             try {
-                let data;
-
-                try {
-                    const response = await fetch('/api/generate', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ key, html: code, compress })
-                    });
-                    if (!response.ok) throw new Error('API Error');
-                    data = await response.json();
-                } catch (e) {
-                    // Fallback for UI Preview
-                    console.warn("API недоступен в превью, используем мок-данные");
-                    await new Promise(r => setTimeout(r, 800));
-                    if (window.location.hostname.includes('googleusercontent') || location.protocol === 'file:') {
-                         showToast('Демо режим: Backend недоступен', 'error');
-                         throw new Error("Backend not connected");
-                    }
-                    throw e;
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, html: code, compress })
+                });
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'API Error');
                 }
-
+                const data = await response.json();
                 updateUI(data.url);
                 showToast('Ссылка успешно сгенерирована!');
-
             } catch (error) {
                 console.error(error);
                 showToast('Ошибка: ' + error.message, 'error');
@@ -338,19 +367,12 @@
             linkAnchor.href = url;
             lenInfo.innerText = url.length;
 
-            // Logic for limit bar
             const limit = 8193;
             const percentage = Math.min((url.length / limit) * 100, 100);
             limitBar.style.width = `${percentage}%`;
-
-            // Colors via Bulma CSS variables or direct styles
-            if (percentage > 90) {
-                limitBar.style.backgroundColor = 'var(--bulma-danger)';
-            } else if (percentage > 70) {
-                limitBar.style.backgroundColor = 'var(--bulma-warning)';
-            } else {
-                limitBar.style.backgroundColor = 'var(--bulma-link)';
-            }
+            if (percentage > 90) limitBar.style.backgroundColor = 'var(--bulma-danger)';
+            else if (percentage > 70) limitBar.style.backgroundColor = 'var(--bulma-warning)';
+            else limitBar.style.backgroundColor = 'var(--bulma-link)';
         }
 
         function resetBtn(btn, content) {
@@ -362,12 +384,158 @@
         function copyLink() {
             const text = document.getElementById('link-text').innerText;
             if (!text) return;
-
             navigator.clipboard.writeText(text).then(() => {
                 showToast('Ссылка скопирована');
             }).catch(err => {
                 showToast('Не удалось скопировать', 'error');
             });
+        }
+
+        // --- Saved Apps Logic ---
+
+        async function loadApps() {
+            const listDiv = document.getElementById('apps-list');
+            try {
+                const response = await fetch('/api/apps');
+                const apps = await response.json();
+
+                if (apps.length === 0) {
+                    listDiv.innerHTML = '<p class="has-text-grey">Нет сохраненных приложений.</p>';
+                    return;
+                }
+
+                let html = '<div class="table-container"><table class="table is-fullwidth is-hoverable is-striped"><thead><tr><th>Slug</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+
+                apps.forEach(app => {
+                    const date = new Date(app.updated_at + 'Z').toLocaleString(); // Assuming UTC from server
+                    html += `
+                        <tr>
+                            <td><a href="/p/${app.slug}" target="_blank" class="has-text-weight-bold">${app.slug}</a></td>
+                            <td class="is-size-7">${date}</td>
+                            <td>
+                                <div class="buttons are-small">
+                                    <button class="button is-info is-light" onclick="editApp('${app.slug}')" title="Редактировать">
+                                        <span class="icon"><i class="ph ph-pencil-simple"></i></span>
+                                    </button>
+                                    <button class="button is-danger is-light" onclick="deleteApp('${app.slug}')" title="Удалить">
+                                        <span class="icon"><i class="ph ph-trash"></i></span>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                });
+                html += '</tbody></table></div>';
+                listDiv.innerHTML = html;
+
+            } catch (e) {
+                console.error(e);
+                listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки списка.</p>';
+            }
+        }
+
+        async function saveApp() {
+            const btn = document.getElementById('save-btn');
+            const originalBtnContent = btn.innerHTML;
+            btn.classList.add('is-loading');
+            btn.disabled = true;
+
+            const key = document.getElementById('key').value;
+            const slug = document.getElementById('app-slug').value;
+            const code = document.getElementById('code').value;
+
+            if (!key) {
+                showToast('Нужен секретный ключ', 'error');
+                resetBtn(btn, originalBtnContent);
+                return;
+            }
+            if (!slug) {
+                showToast('Укажите имя ссылки (slug)', 'error');
+                resetBtn(btn, originalBtnContent);
+                return;
+            }
+            if (!code) {
+                showToast('Код пустой!', 'error');
+                resetBtn(btn, originalBtnContent);
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/apps', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key, slug, html: code })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Ошибка сохранения');
+                }
+
+                showToast('Приложение сохранено!');
+                loadApps(); // Refresh list
+
+            } catch (e) {
+                showToast(e.message, 'error');
+            } finally {
+                resetBtn(btn, originalBtnContent);
+            }
+        }
+
+        async function editApp(slug) {
+            try {
+                const response = await fetch(`/api/apps/${slug}`);
+                if (!response.ok) throw new Error('Не удалось загрузить приложение');
+                const data = await response.json();
+
+                document.getElementById('code').value = data.html_content;
+                document.getElementById('app-slug').value = data.slug;
+
+                // Switch tab back if needed (though we are likely on 'saved' tab,
+                // the user might want to edit. But wait, editing happens in the shared editor.)
+                // The editor is visible in 'saved' tab too because it's in the common area?
+                // Wait, looking at HTML structure...
+                // The "Code Editor" div is *outside* the tabs content divs?
+                // Let's check.
+                // Yes, "Code Editor" is in `.block` before the tabs content divs.
+                // Ah wait, no.
+                // "Code Editor" is BEFORE "Generate Tab Actions" and "Saved Apps Tab Actions".
+                // So the editor is SHARED. Perfect.
+
+                showToast(`Загружено: ${slug}`);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function deleteApp(slug) {
+            if (!confirm(`Вы уверены, что хотите удалить ${slug}?`)) return;
+
+            const key = document.getElementById('key').value;
+            if (!key) {
+                showToast('Введите секретный ключ для удаления', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/apps/${slug}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ key })
+                });
+
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || 'Ошибка удаления');
+                }
+
+                showToast('Удалено');
+                loadApps();
+            } catch (e) {
+                showToast(e.message, 'error');
+            }
         }
     </script>
 </body>

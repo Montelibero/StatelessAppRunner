@@ -151,16 +151,12 @@ def minify_html(html_content: str) -> str:
 # --- ENDPOINTS ---
 
 @app.get("/", response_class=HTMLResponse)
-async def run_app(d: str = None, s: str = None):
+async def run_app(request: Request, d: str = None, s: str = None):
     """
     Runner: принимает payload (d) и подпись (s).
     """
     if not d or not s:
-        return """
-        <html><body><h1>Stateless App Runner</h1>
-        <p>Нет данных для запуска. Перейдите в <a href="/admin">/admin</a> для создания ссылки.</p>
-        </body></html>
-        """
+        return templates.TemplateResponse(request=request, name="index.html")
 
     # 1. Проверяем подпись (Check signature against all valid keys)
     matched_key = None

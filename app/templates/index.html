@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stateless App Runner</title>
+
+    <!-- Bulma CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css">
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        .hero-body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .box {
+            max-width: 600px;
+            width: 100%;
+            border-top: 4px solid var(--bulma-link);
+        }
+        .footer-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--bulma-text);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .footer-link:hover {
+            color: var(--bulma-link);
+        }
+    </style>
+</head>
+<body>
+
+    <section class="hero is-fullheight is-light">
+        <div class="hero-body">
+            <div class="container has-text-centered">
+
+                <div class="box p-6 mx-auto animate-slide-in">
+                    <span class="icon is-large has-text-link mb-4">
+                        <i class="ph ph-rocket-launch" style="font-size: 48px;"></i>
+                    </span>
+
+                    <h1 class="title is-3 mb-3">Stateless App Runner</h1>
+                    <p class="subtitle is-6 has-text-grey">
+                        Безопасная среда для запуска HTML/JS приложений. <br>
+                        Весь код содержится внутри ссылки — никакой базы данных.
+                    </p>
+
+                    <div class="content mt-5">
+                        <p class="is-size-7 has-text-grey-light">
+                            Используйте генератор для создания подписанных ссылок <br>
+                            и делитесь ими безопасно.
+                        </p>
+                    </div>
+
+                    <div class="buttons is-centered mt-5">
+                        <a href="/admin" class="button is-link is-medium is-rounded">
+                            <span class="icon"><i class="ph ph-magic-wand"></i></span>
+                            <span>Перейти в Генератор</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="mt-6">
+                    <a href="https://github.com/montelibero/stateless_app_runner" target="_blank" class="footer-link">
+                        <i class="ph ph-github-logo is-size-4"></i>
+                        <span class="has-text-weight-medium">View source on GitHub</span>
+                    </a>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</body>
+</html>

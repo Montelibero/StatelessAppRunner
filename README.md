@@ -19,14 +19,20 @@ A lightweight, stateless application runner built with FastAPI. This service all
 
 ### Running the Application
 
-1. Clone the repository and navigate to the project root.
-2. Start the service:
+1. (Optional) Pull the latest image:
+
+   ```bash
+   docker pull ghcr.io/montelibero/stateless_app_runner:latest
+   ```
+
+2. Clone the repository and navigate to the project root.
+3. Start the service:
 
    ```bash
    docker-compose up -d
    ```
 
-3. Access the application:
+4. Access the application:
    - **Runner**: `http://localhost/` (will show a default message if no payload is provided)
    - **Admin/Generator**: `http://localhost/admin`
 

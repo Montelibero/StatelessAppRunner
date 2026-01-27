@@ -6,76 +6,61 @@ import hashlib
 import secrets
 import logging
 import re
-from typing import Optional
+import uuid
+from typing import Optional, List
 
-from fastapi import FastAPI, Request, HTTPException, Form
+from fastapi import FastAPI, Request, HTTPException, Form, Depends, Header
 from fastapi.responses import HTMLResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from db import init_db, save_app, get_app, list_apps, delete_app
+from db import (
+    init_db, save_app, get_app, list_apps, delete_app,
+    sync_admin_key, get_user_by_key, create_user, list_users
+)
 
 app = FastAPI(title="Stateless App Runner")
 
 # Ensure DB is initialized
 init_db()
 
-# Настройки по умолчанию
+# Default Secret (Admin Key)
 DEFAULT_SECRET = os.getenv("SECRET_KEY")
 if not DEFAULT_SECRET:
     DEFAULT_SECRET = secrets.token_urlsafe(32)
     logging.warning(f"No SECRET_KEY set. Generated random secret: {DEFAULT_SECRET}")
 
-# Initialize VALID_KEYS with DEFAULT_SECRET
-VALID_KEYS = {DEFAULT_SECRET}
-
-# Add keys from SECRET_KEYS environment variable
-SECRET_KEYS_ENV = os.getenv("SECRET_KEYS")
-if SECRET_KEYS_ENV:
-    extra_keys = [k.strip() for k in SECRET_KEYS_ENV.split(",") if k.strip()]
-    VALID_KEYS.update(extra_keys)
-    logging.info(f"Loaded {len(extra_keys)} additional keys from SECRET_KEYS")
+# Sync Admin Key to DB
+sync_admin_key(DEFAULT_SECRET)
 
 DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "https://mtlminiapps.us")
 
-# --- ЛОГИКА (Core Logic) ---
+# --- CORE LOGIC ---
 
 def sign_data(data: str, key: str) -> str:
     key_bytes = key.encode('utf-8')
     return hmac.new(key_bytes, data.encode('utf-8'), hashlib.sha256).hexdigest()
 
 def compress_payload(html: str) -> str:
-    # 1. Сжимаем
     compressed = zlib.compress(html.encode('utf-8'), level=9)
-    # 2. Base64 URL-safe (без padding)
     return base64.urlsafe_b64encode(compressed).decode('utf-8').rstrip('=')
 
 def decompress_payload(payload: str) -> str:
-    # Возвращаем padding если нужно
     padding = 4 - (len(payload) % 4)
     if padding != 4:
         payload += '=' * padding
-
     compressed_data = base64.urlsafe_b64decode(payload)
     return zlib.decompress(compressed_data).decode('utf-8')
 
 def remove_js_comments(text: str) -> str:
-    """
-    Parses JS content to remove // comments while respecting quotes.
-    Handles ', ", and ` quotes.
-    """
     out = []
     i = 0
     n = len(text)
     in_quote = None
-
     while i < n:
         char = text[i]
-
-        # Check for quote start/end
         if in_quote:
             if char == in_quote:
-                # Check for escaped quote (count preceding backslashes)
                 escaped = False
                 j = i - 1
                 backslashes = 0
@@ -87,110 +72,88 @@ def remove_js_comments(text: str) -> str:
             out.append(char)
             i += 1
             continue
-
         if char in ('"', "'", '`'):
             in_quote = char
             out.append(char)
             i += 1
             continue
-
-        # Check for // comment
         if char == '/' and i + 1 < n and text[i+1] == '/':
-            # Found comment, skip until newline
             i += 2
             while i < n and text[i] != '\n':
                 i += 1
-            # We skip the comment but continue loop (next char is newline or end)
             continue
-
         out.append(char)
         i += 1
-
     return "".join(out)
 
 def minify_html(html_content: str) -> str:
-    """
-    Simple minification:
-    1. Remove HTML comments <!-- ... -->
-    2. Remove JS comments // ... ONLY inside <script> tags using a parser.
-    3. Collapse whitespace
-    """
-    # 1. Remove HTML comments
     html_content = re.sub(r'<!--.*?-->', '', html_content, flags=re.DOTALL)
-
-    # 2. Process <script> tags to remove JS comments
     def process_script(match):
-        open_tag = match.group(1)
-        content = match.group(2)
-        close_tag = match.group(3)
-        return open_tag + remove_js_comments(content) + close_tag
-
-    # Match <script...>content</script>
-    # Use DOTALL so . matches newlines in content
-    # Use IGNORECASE for <SCRIPT>
+        return match.group(1) + remove_js_comments(match.group(2)) + match.group(3)
     html_content = re.sub(r'(<script[^>]*>)(.*?)(</script>)', process_script, html_content, flags=re.DOTALL | re.IGNORECASE)
-
-    # 3. Remove CSS comments /* ... */
-    # We apply this globally as it's generally safe, or we could target <style>
-    # Given the user request, removing them from <style> blocks is safer.
     def process_style(match):
-        open_tag = match.group(1)
-        content = match.group(2)
-        close_tag = match.group(3)
-        # Remove /* ... */ comments
-        content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
-        return open_tag + content + close_tag
-
+        content = re.sub(r'/\*.*?\*/', '', match.group(2), flags=re.DOTALL)
+        return match.group(1) + content + match.group(3)
     html_content = re.sub(r'(<style[^>]*>)(.*?)(</style>)', process_style, html_content, flags=re.DOTALL | re.IGNORECASE)
-
-    # 3. Collapse whitespace (newlines, tabs, multiple spaces -> single space)
     html_content = re.sub(r'\s+', ' ', html_content)
-
     return html_content.strip()
+
+# --- AUTH HELPER ---
+
+def get_current_user_by_key(key: str):
+    user = get_user_by_key(key)
+    if not user:
+        if key == DEFAULT_SECRET:
+             return {"id": 1, "key": DEFAULT_SECRET, "comment": "Admin (Fallback)"}
+        raise HTTPException(status_code=403, detail="Invalid Key")
+    return user
 
 # --- ENDPOINTS ---
 
 @app.get("/", response_class=HTMLResponse)
 async def run_app(request: Request, d: str = None, s: str = None):
-    """
-    Runner: принимает payload (d) и подпись (s).
-    """
     if not d or not s:
         return templates.TemplateResponse(request=request, name="index.html")
 
-    # 1. Проверяем подпись (Check signature against all valid keys)
+    users = list_users()
     matched_key = None
-    for key in VALID_KEYS:
+
+    all_keys = [u['key'] for u in users]
+    if DEFAULT_SECRET not in all_keys:
+        all_keys.append(DEFAULT_SECRET)
+
+    for key in all_keys:
         expected_sign = sign_data(d, key)
         if hmac.compare_digest(expected_sign, s):
             matched_key = key
             break
 
     if not matched_key:
-        # На случай, если ссылка была сгенерирована другим ключом, но мы хотим проверить целостность
-        # Здесь мы строго отклоняем, если подпись не совпадает с КЛЮЧОМ СЕРВЕРА
         raise HTTPException(status_code=403, detail="Integrity Check Failed (Invalid Signature)")
 
-    # Log successful access with key prefix
     key_prefix = matched_key[:5] if len(matched_key) >= 5 else matched_key
     logging.info(f"Access granted using key starting with: {key_prefix}")
 
     try:
-        # 2. Декодируем
         html_content = decompress_payload(d)
         return html_content
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Decoding error: {str(e)}")
 
+# Admin / Legacy routes
 @app.get("/p/{slug}", response_class=HTMLResponse)
-async def run_persistent_app(slug: str):
-    """
-    Runs a persistent app saved in the database.
-    """
-    app_data = get_app(slug)
+async def run_persistent_app_admin(slug: str):
+    app_data = get_app(slug, user_id=1)
     if not app_data:
         raise HTTPException(status_code=404, detail="App not found")
+    return HTMLResponse(content=app_data['html_content'])
 
+# User routes
+@app.get("/p{user_id}/{slug}", response_class=HTMLResponse)
+async def run_persistent_app_user(user_id: int, slug: str):
+    app_data = get_app(slug, user_id=user_id)
+    if not app_data:
+        raise HTTPException(status_code=404, detail="App not found")
     return HTMLResponse(content=app_data['html_content'])
 
 # --- ADMIN PANEL ---
@@ -210,8 +173,7 @@ class GenerateRequest(BaseModel):
 
 @app.post("/api/generate")
 async def generate_api(req: GenerateRequest):
-    if req.key not in VALID_KEYS:
-        raise HTTPException(status_code=403, detail="Invalid Key. You must provide a valid server key.")
+    user = get_current_user_by_key(req.key)
 
     html_to_process = req.html
     if req.compress:
@@ -232,37 +194,96 @@ class SaveAppRequest(BaseModel):
     key: str
     slug: str
     html: str
+    owner_id: Optional[int] = None # Support saving for other users (Admin only)
 
 class DeleteAppRequest(BaseModel):
     key: str
+    owner_id: Optional[int] = None # Support deleting for other users (Admin only)
 
 @app.post("/api/apps")
 async def save_app_api(req: SaveAppRequest):
-    if req.key not in VALID_KEYS:
-        raise HTTPException(status_code=403, detail="Invalid Key")
+    user = get_current_user_by_key(req.key)
+
+    target_user_id = user['id']
+    if req.owner_id is not None:
+        if user['id'] != 1:
+            raise HTTPException(status_code=403, detail="Only Admin can save to other users")
+        target_user_id = req.owner_id
 
     if not req.slug.strip():
         raise HTTPException(status_code=400, detail="Slug cannot be empty")
 
-    save_app(req.slug.strip(), req.html)
-    return {"status": "ok", "slug": req.slug}
+    save_app(req.slug.strip(), req.html, user_id=target_user_id)
+    return {"status": "ok", "slug": req.slug, "user_id": target_user_id}
 
 @app.get("/api/apps")
-async def list_apps_api():
-    apps = list_apps()
+async def list_apps_api(key: str):
+    user = get_current_user_by_key(key)
+
+    if user['id'] == 1:
+        # Admin sees all apps
+        apps = list_apps(user_id=None)
+    else:
+        # User sees only theirs
+        apps = list_apps(user_id=user['id'])
+
     return apps
 
 @app.get("/api/apps/{slug}")
-async def get_app_api(slug: str):
-    app_data = get_app(slug)
+async def get_app_api(slug: str, key: str, target_user_id: Optional[int] = None):
+    user = get_current_user_by_key(key)
+
+    uid = user['id']
+    if target_user_id is not None:
+        if user['id'] != 1 and target_user_id != user['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+        uid = target_user_id
+
+    app_data = get_app(slug, user_id=uid)
     if not app_data:
         raise HTTPException(status_code=404, detail="App not found")
     return app_data
 
 @app.delete("/api/apps/{slug}")
-async def delete_app_api(slug: str, req: DeleteAppRequest):
-    if req.key not in VALID_KEYS:
-        raise HTTPException(status_code=403, detail="Invalid Key")
+async def delete_app_api(slug: str, req: DeleteAppRequest, target_user_id: Optional[int] = None):
+    user = get_current_user_by_key(req.key)
 
-    delete_app(slug)
+    uid = user['id']
+
+    # Check body param first (if sent) or query param
+    req_target = req.owner_id if req.owner_id is not None else target_user_id
+
+    if req_target is not None:
+         if user['id'] != 1 and req_target != user['id']:
+             raise HTTPException(status_code=403, detail="Access denied")
+         uid = req_target
+
+    delete_app(slug, user_id=uid)
     return {"status": "deleted", "slug": slug}
+
+# --- USER MANAGEMENT API ---
+
+class CreateUserRequest(BaseModel):
+    key: str
+    comment: Optional[str] = None
+    admin_key: str
+
+@app.post("/api/users")
+async def create_user_api(req: CreateUserRequest):
+    admin = get_current_user_by_key(req.admin_key)
+    if admin['id'] != 1:
+        raise HTTPException(status_code=403, detail="Only Admin can create users")
+
+    try:
+        new_id = create_user(req.key, req.comment)
+        return {"id": new_id, "key": req.key}
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Key already exists")
+
+@app.get("/api/users")
+async def list_users_api(key: str):
+    user = get_current_user_by_key(key)
+    if user['id'] != 1:
+        raise HTTPException(status_code=403, detail="Only Admin can list users")
+
+    return list_users()

@@ -2,7 +2,7 @@
 import pytest
 import re
 from fastapi.testclient import TestClient
-from main import app, minify_html
+from main import app, minify_html, DEFAULT_SECRET
 
 client = TestClient(app)
 
@@ -84,8 +84,7 @@ def test_minify_html_whitespace():
     assert "<div> <p> Hello World </p> </div>" == minified
 
 def test_generate_api_with_compression():
-    from main import VALID_KEYS
-    valid_key = list(VALID_KEYS)[0]
+    valid_key = DEFAULT_SECRET
 
     html = """
     <!-- Comment -->

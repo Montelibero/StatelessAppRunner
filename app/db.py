@@ -28,6 +28,36 @@ def init_db():
         )
     ''')
 
+    # 1.5 Recover from a partial migration (apps_old left behind)
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apps_old'")
+    if c.fetchone():
+        logging.warning("Detected leftover apps_old table. Attempting recovery...")
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apps'")
+        if not c.fetchone():
+            _create_new_apps_table(c)
+        else:
+            c.execute("PRAGMA table_info(apps)")
+            cols = {row[1] for row in c.fetchall()}
+            if "user_id" not in cols:
+                # Old schema with apps_old present: rename and recreate cleanly
+                c.execute("ALTER TABLE apps RENAME TO apps_legacy")
+                _create_new_apps_table(c)
+
+        now = datetime.datetime.utcnow()
+        c.execute("SELECT id FROM users WHERE id = 1")
+        if not c.fetchone():
+            c.execute(
+                "INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, ?, ?)",
+                ("legacy-admin", "Admin (Auto-migrated)", now),
+            )
+
+        c.execute('''
+            INSERT OR IGNORE INTO apps (slug, user_id, html_content, created_at, updated_at)
+            SELECT slug, 1, html_content, created_at, updated_at FROM apps_old
+        ''')
+        c.execute("DROP TABLE apps_old")
+        conn.commit()
+
     # 2. Check if apps table needs migration
     try:
         c.execute("SELECT user_id FROM apps LIMIT 1")
@@ -49,7 +79,12 @@ def init_db():
             now = datetime.datetime.utcnow()
             c.execute("SELECT id FROM users WHERE id = 1")
             if not c.fetchone():
-                pass
+                # Create a placeholder admin to satisfy FK during migration.
+                # sync_admin_key() will update the key later.
+                c.execute(
+                    "INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, ?, ?)",
+                    ("legacy-admin", "Admin (Auto-migrated)", now),
+                )
 
             c.execute("ALTER TABLE apps RENAME TO apps_old")
             _create_new_apps_table(c)

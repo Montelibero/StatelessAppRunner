@@ -16,5 +16,5 @@ def test_homepage_structure():
     # Check for link to admin
     assert 'href="/admin"' in response.text
 
-    # Check for github link
-    assert 'href="https://github.com/montelibero/stateless_app_runner"' in response.text
+    # Check for github link - Updated to match actual file content
+    assert 'href="https://github.com/Montelibero/StatelessAppRunner"' in response.text

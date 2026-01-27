@@ -136,6 +136,7 @@
                     <ul>
                         <li class="is-active" id="tab-generate" onclick="switchTab('generate')"><a>Генератор</a></li>
                         <li id="tab-saved" onclick="switchTab('saved')"><a>Сохраненные (DB)</a></li>
+                        <li id="tab-users" onclick="switchTab('users')" class="is-hidden"><a>Пользователи</a></li>
                     </ul>
                 </div>
 
@@ -146,12 +147,12 @@
                     <div class="field">
                         <label class="label">
                             Секретный ключ
-                            <span class="icon is-small has-text-grey-light ml-1" title="Должен совпадать с ENV на сервере" style="cursor: help;">
+                            <span class="icon is-small has-text-grey-light ml-1" title="Ваш личный ключ авторизации" style="cursor: help;">
                                 <i class="ph ph-question"></i>
                             </span>
                         </label>
                         <div class="control has-icons-left has-icons-right">
-                            <input class="input is-medium" type="password" id="key" placeholder="Введите ваш секретный ключ">
+                            <input class="input is-medium" type="password" id="key" placeholder="Введите ваш секретный ключ" onchange="onKeyChange()">
                             <span class="icon is-small is-left">
                                 <i class="ph ph-key"></i>
                             </span>
@@ -161,7 +162,7 @@
                         </div>
                     </div>
 
-                    <!-- Code Editor -->
+                    <!-- Code Editor (Shared) -->
                     <div class="field mt-5">
                         <div class="level is-mobile mb-2">
                             <div class="level-left">
@@ -238,18 +239,55 @@
                                 <input class="input" type="text" id="app-slug" placeholder="Имя ссылки (например, my-app)">
                             </div>
                             <div class="control">
+                                 <button class="button is-light" id="reset-btn" onclick="resetAppForm()" title="Сбросить / Новый">
+                                    <span class="icon"><i class="ph ph-arrow-counter-clockwise"></i></span>
+                                 </button>
+                            </div>
+                            <div class="control">
                                 <button class="button is-primary" id="save-btn" onclick="saveApp()">
                                     <span class="icon"><i class="ph ph-floppy-disk"></i></span>
-                                    <span>Сохранить на сервер</span>
+                                    <span>Сохранить</span>
                                 </button>
                             </div>
                         </div>
-                        <p class="help mb-5">Приложение будет доступно по адресу <code>/p/{имя}</code></p>
+                        <p class="help mb-5" id="editing-status">Приложение будет доступно по адресу <code>/p{id}/{имя}</code></p>
 
                         <h2 class="title is-5 mt-6">Сохраненные приложения</h2>
                         <div id="apps-list" class="mt-4">
-                            <p class="has-text-grey-light is-italic">Загрузка...</p>
+                            <p class="has-text-grey-light is-italic">Введите ключ чтобы увидеть приложения...</p>
                         </div>
+                    </div>
+
+                    <!-- Users Tab Actions -->
+                    <div id="content-users" class="is-hidden">
+                         <h2 class="title is-5 mt-4">Управление Пользователями</h2>
+
+                         <div class="box has-background-light">
+                            <div class="field">
+                                <label class="label">Новый Ключ</label>
+                                <div class="control has-addons">
+                                    <a class="button is-static">mini</a>
+                                    <input class="input" type="text" id="new-user-key" placeholder="uuid...">
+                                    <div class="control">
+                                        <button class="button is-info" onclick="generateUUIDKey()">
+                                            <span class="icon"><i class="ph ph-arrows-clockwise"></i></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label class="label">Комментарий</label>
+                                <div class="control">
+                                    <input class="input" type="text" id="new-user-comment" placeholder="Имя пользователя или описание">
+                                </div>
+                            </div>
+                            <button class="button is-primary is-fullwidth" onclick="createUser()">Создать пользователя</button>
+                         </div>
+
+                         <h3 class="title is-6 mt-5">Статистика и Ключи</h3>
+                         <div id="users-list">
+                             <p class="has-text-grey-light">Загрузка...</p>
+                         </div>
                     </div>
 
                 </div>
@@ -301,7 +339,11 @@
             }, 3000);
         }
 
+        let currentTab = 'generate';
+        let currentAppOwnerId = null;
+
         function switchTab(tabName) {
+            currentTab = tabName;
             // Tabs
             document.querySelectorAll('.tabs li').forEach(li => li.classList.remove('is-active'));
             document.getElementById(`tab-${tabName}`).classList.add('is-active');
@@ -309,10 +351,56 @@
             // Content
             document.getElementById('content-generate').classList.add('is-hidden');
             document.getElementById('content-saved').classList.add('is-hidden');
+            document.getElementById('content-users').classList.add('is-hidden');
             document.getElementById(`content-${tabName}`).classList.remove('is-hidden');
 
             if (tabName === 'saved') {
                 loadApps();
+            } else if (tabName === 'users') {
+                loadUsers();
+            }
+        }
+
+        function onKeyChange() {
+             const key = document.getElementById('key').value;
+             if (currentTab === 'saved') loadApps();
+             if (currentTab === 'users') loadUsers();
+
+             // Check if Admin to show Users tab
+             checkAdmin(key);
+        }
+
+        async function checkAdmin(key) {
+            if(!key) return;
+            // Optimistically try to fetch users. If 200, show tab.
+            try {
+                const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
+                if(response.ok) {
+                    document.getElementById('tab-users').classList.remove('is-hidden');
+                } else {
+                    document.getElementById('tab-users').classList.add('is-hidden');
+                }
+            } catch(e) {
+                document.getElementById('tab-users').classList.add('is-hidden');
+            }
+        }
+
+        function resetAppForm() {
+            document.getElementById('app-slug').value = '';
+            document.getElementById('code').value = '';
+            currentAppOwnerId = null;
+            updateEditingStatus();
+            showToast("Форма очищена");
+        }
+
+        function updateEditingStatus() {
+            const status = document.getElementById('editing-status');
+            if (currentAppOwnerId) {
+                status.innerHTML = `Редактирование приложения пользователя ID <b>${currentAppOwnerId}</b>`;
+                status.classList.add('has-text-info');
+            } else {
+                status.innerHTML = `Новое приложение (будет сохранено для вас)`;
+                status.classList.remove('has-text-info');
             }
         }
 
@@ -395,8 +483,17 @@
 
         async function loadApps() {
             const listDiv = document.getElementById('apps-list');
+            const key = document.getElementById('key').value;
+
+            if(!key) {
+                 listDiv.innerHTML = '<p class="has-text-grey">Введите ключ чтобы увидеть приложения.</p>';
+                 return;
+            }
+
             try {
-                const response = await fetch('/api/apps');
+                const response = await fetch(`/api/apps?key=${encodeURIComponent(key)}`);
+                if (!response.ok) throw new Error('Ошибка доступа или неверный ключ');
+
                 const apps = await response.json();
 
                 if (apps.length === 0) {
@@ -404,20 +501,29 @@
                     return;
                 }
 
-                let html = '<div class="table-container"><table class="table is-fullwidth is-hoverable is-striped"><thead><tr><th>Slug</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+                let html = '<div class="table-container"><table class="table is-fullwidth is-hoverable is-striped"><thead><tr><th>Slug</th><th>URL</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
 
                 apps.forEach(app => {
-                    const date = new Date(app.updated_at + 'Z').toLocaleString(); // Assuming UTC from server
+                    const date = new Date(app.updated_at + 'Z').toLocaleString();
+                    // Construct URL
+                    let urlPath = '';
+                    if (app.user_id === 1) {
+                         urlPath = `/p/${app.slug}`;
+                    } else {
+                         urlPath = `/p${app.user_id}/${app.slug}`;
+                    }
+
                     html += `
                         <tr>
-                            <td><a href="/p/${app.slug}" target="_blank" class="has-text-weight-bold">${app.slug}</a></td>
+                            <td class="has-text-weight-bold">${app.slug}</td>
+                            <td><a href="${urlPath}" target="_blank" class="is-size-7">${urlPath}</a></td>
                             <td class="is-size-7">${date}</td>
                             <td>
                                 <div class="buttons are-small">
-                                    <button class="button is-info is-light" onclick="editApp('${app.slug}')" title="Редактировать">
+                                    <button class="button is-info is-light" onclick="editApp('${app.slug}', ${app.user_id})" title="Редактировать">
                                         <span class="icon"><i class="ph ph-pencil-simple"></i></span>
                                     </button>
-                                    <button class="button is-danger is-light" onclick="deleteApp('${app.slug}')" title="Удалить">
+                                    <button class="button is-danger is-light" onclick="deleteApp('${app.slug}', ${app.user_id})" title="Удалить">
                                         <span class="icon"><i class="ph ph-trash"></i></span>
                                     </button>
                                 </div>
@@ -430,7 +536,7 @@
 
             } catch (e) {
                 console.error(e);
-                listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки списка.</p>';
+                listDiv.innerHTML = `<p class="has-text-danger">${e.message}</p>`;
             }
         }
 
@@ -464,7 +570,7 @@
                 const response = await fetch('/api/apps', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key, slug, html: code })
+                    body: JSON.stringify({ key, slug, html: code, owner_id: currentAppOwnerId })
                 });
 
                 if (!response.ok) {
@@ -482,25 +588,22 @@
             }
         }
 
-        async function editApp(slug) {
+        async function editApp(slug, ownerId) {
             try {
-                const response = await fetch(`/api/apps/${slug}`);
+                const key = document.getElementById('key').value;
+                let url = `/api/apps/${slug}?key=${encodeURIComponent(key)}`;
+                if(ownerId) url += `&target_user_id=${ownerId}`;
+
+                const response = await fetch(url);
+
                 if (!response.ok) throw new Error('Не удалось загрузить приложение');
                 const data = await response.json();
 
                 document.getElementById('code').value = data.html_content;
                 document.getElementById('app-slug').value = data.slug;
 
-                // Switch tab back if needed (though we are likely on 'saved' tab,
-                // the user might want to edit. But wait, editing happens in the shared editor.)
-                // The editor is visible in 'saved' tab too because it's in the common area?
-                // Wait, looking at HTML structure...
-                // The "Code Editor" div is *outside* the tabs content divs?
-                // Let's check.
-                // Yes, "Code Editor" is in `.block` before the tabs content divs.
-                // Ah wait, no.
-                // "Code Editor" is BEFORE "Generate Tab Actions" and "Saved Apps Tab Actions".
-                // So the editor is SHARED. Perfect.
+                currentAppOwnerId = ownerId;
+                updateEditingStatus();
 
                 showToast(`Загружено: ${slug}`);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -510,7 +613,7 @@
             }
         }
 
-        async function deleteApp(slug) {
+        async function deleteApp(slug, ownerId) {
             if (!confirm(`Вы уверены, что хотите удалить ${slug}?`)) return;
 
             const key = document.getElementById('key').value;
@@ -519,11 +622,14 @@
                 return;
             }
 
+            let url = `/api/apps/${slug}`;
+            if(ownerId) url += `?target_user_id=${ownerId}`;
+
             try {
-                const response = await fetch(`/api/apps/${slug}`, {
+                const response = await fetch(url, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ key })
+                    body: JSON.stringify({ key, owner_id: ownerId })
                 });
 
                 if (!response.ok) {
@@ -537,6 +643,91 @@
                 showToast(e.message, 'error');
             }
         }
+
+        // --- Users Logic ---
+
+        function generateUUIDKey() {
+            const uuid = crypto.randomUUID();
+            document.getElementById('new-user-key').value = uuid;
+        }
+
+        async function loadUsers() {
+            const key = document.getElementById('key').value;
+            if (!key) return;
+
+            const listDiv = document.getElementById('users-list');
+
+            try {
+                const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
+                if(!response.ok) throw new Error("Нет доступа");
+
+                const users = await response.json();
+                let html = '<div class="table-container"><table class="table is-fullwidth is-striped is-hoverable"><thead><tr><th>ID</th><th>Key/Comment</th><th title="Создал (Stateless)">Gen</th><th title="Просмотры Stateless">View S</th><th title="Сохранил App">Apps</th><th title="Просмотры App">View P</th></tr></thead><tbody>';
+                users.forEach(u => {
+                    const stats = u.stats || {};
+                    html += `<tr>
+                        <td>${u.id}</td>
+                        <td>
+                            <div class="is-family-monospace is-size-7">${u.key}</div>
+                            <div class="is-size-7 has-text-grey">${u.comment || '-'}</div>
+                        </td>
+                        <td>${stats.generated || 0}</td>
+                        <td>${stats.view_stateless || 0}</td>
+                        <td>${stats.apps_count || 0}</td>
+                        <td>${stats.view_persistent || 0}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table></div>';
+                listDiv.innerHTML = html;
+            } catch(e) {
+                listDiv.innerHTML = `<p class="has-text-danger">${e.message}</p>`;
+            }
+        }
+
+        async function createUser() {
+            const adminKey = document.getElementById('key').value;
+            const uuidPart = document.getElementById('new-user-key').value;
+            const comment = document.getElementById('new-user-comment').value;
+
+            if(!uuidPart) {
+                showToast("Сгенерируйте или введите UUID", "error");
+                return;
+            }
+
+            const fullKey = "mini" + uuidPart;
+
+            try {
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        admin_key: adminKey,
+                        key: fullKey,
+                        comment: comment
+                    })
+                });
+
+                if(!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.detail || "Ошибка");
+                }
+
+                showToast(`Пользователь создан: ${fullKey}`);
+                loadUsers();
+                document.getElementById('new-user-key').value = '';
+                document.getElementById('new-user-comment').value = '';
+
+            } catch(e) {
+                showToast(e.message, 'error');
+            }
+        }
+
+        // Initialize admin check on load if key is pre-filled (browser autocomplete)
+        setTimeout(() => {
+             const key = document.getElementById('key').value;
+             if(key) checkAdmin(key);
+        }, 500);
+
     </script>
 </body>
 </html>

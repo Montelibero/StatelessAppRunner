@@ -1,7 +1,8 @@
 import sqlite3
 import os
 import datetime
-from typing import List, Optional, Tuple
+import logging
+from typing import List, Optional, Tuple, Dict
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "apps.db")
 
@@ -9,65 +10,261 @@ def get_connection():
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
+    # Enable FK support
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 def init_db():
     conn = get_connection()
     c = conn.cursor()
+
+    # 1. Create users table
     c.execute('''
-        CREATE TABLE IF NOT EXISTS apps (
-            slug TEXT PRIMARY KEY,
-            html_content TEXT,
-            created_at TIMESTAMP,
-            updated_at TIMESTAMP
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            key TEXT UNIQUE NOT NULL,
+            comment TEXT,
+            created_at TIMESTAMP
         )
     ''')
+
+    # 2. Check if apps table needs migration
+    try:
+        c.execute("SELECT user_id FROM apps LIMIT 1")
+        needs_migration = False
+    except sqlite3.OperationalError:
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apps'")
+        if c.fetchone():
+            needs_migration = True
+        else:
+            needs_migration = False
+            _create_new_apps_table(c)
+
+    if needs_migration:
+        logging.info("Migrating database to multi-user schema...")
+        try:
+            conn.execute("BEGIN TRANSACTION;")
+            conn.execute("PRAGMA foreign_keys = OFF;")
+
+            now = datetime.datetime.utcnow()
+            c.execute("SELECT id FROM users WHERE id = 1")
+            if not c.fetchone():
+                pass
+
+            c.execute("ALTER TABLE apps RENAME TO apps_old")
+            _create_new_apps_table(c)
+
+            c.execute('''
+                INSERT INTO apps (slug, user_id, html_content, created_at, updated_at)
+                SELECT slug, 1, html_content, created_at, updated_at FROM apps_old
+            ''')
+
+            c.execute("DROP TABLE apps_old")
+            conn.execute("COMMIT;")
+            conn.execute("PRAGMA foreign_keys = ON;")
+            logging.info("Migration completed successfully.")
+
+        except Exception as e:
+            conn.execute("ROLLBACK;")
+            logging.error(f"Migration failed: {e}")
+            raise e
+
+    # 3. Create access_logs table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT NOT NULL,
+            slug TEXT,
+            timestamp TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
-def save_app(slug: str, html_content: str):
+def _create_new_apps_table(cursor):
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS apps (
+            slug TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            html_content TEXT,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            PRIMARY KEY (slug, user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
+def sync_admin_key(env_key: str):
+    if not env_key:
+        return
+
+    conn = get_connection()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM users WHERE id = 1")
+    admin = c.fetchone()
+
+    now = datetime.datetime.utcnow()
+
+    if admin:
+        if admin['key'] != env_key:
+            logging.warning("Updating Admin (ID 1) key to match environment variable.")
+            c.execute("UPDATE users SET key = ? WHERE id = 1", (env_key,))
+    else:
+        logging.info("Creating Admin User (ID 1) from environment key.")
+        try:
+            c.execute("INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, 'Admin (System)', ?)", (env_key, now))
+        except sqlite3.IntegrityError:
+            logging.error("Failed to insert Admin user. Key might be in use?")
+
+    conn.commit()
+    conn.close()
+
+def save_app(slug: str, html_content: str, user_id: int = 1):
     conn = get_connection()
     c = conn.cursor()
     now = datetime.datetime.utcnow()
 
-    # Check if exists
-    c.execute("SELECT slug FROM apps WHERE slug = ?", (slug,))
+    c.execute("SELECT slug FROM apps WHERE slug = ? AND user_id = ?", (slug, user_id))
     exists = c.fetchone()
 
     if exists:
         c.execute('''
-            UPDATE apps SET html_content = ?, updated_at = ? WHERE slug = ?
-        ''', (html_content, now, slug))
+            UPDATE apps SET html_content = ?, updated_at = ? WHERE slug = ? AND user_id = ?
+        ''', (html_content, now, slug, user_id))
     else:
         c.execute('''
-            INSERT INTO apps (slug, html_content, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
-        ''', (slug, html_content, now, now))
+            INSERT INTO apps (slug, user_id, html_content, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (slug, user_id, html_content, now, now))
 
     conn.commit()
     conn.close()
 
-def get_app(slug: str) -> Optional[dict]:
+def get_app(slug: str, user_id: int = 1) -> Optional[dict]:
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT * FROM apps WHERE slug = ?", (slug,))
+    c.execute("SELECT * FROM apps WHERE slug = ? AND user_id = ?", (slug, user_id))
     row = c.fetchone()
     conn.close()
     if row:
         return dict(row)
     return None
 
-def list_apps() -> List[dict]:
+def list_apps(user_id: Optional[int] = None) -> List[dict]:
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT slug, updated_at FROM apps ORDER BY updated_at DESC")
+
+    if user_id is not None:
+        c.execute("SELECT slug, updated_at, user_id FROM apps WHERE user_id = ? ORDER BY updated_at DESC", (user_id,))
+    else:
+        c.execute("SELECT slug, updated_at, user_id FROM apps ORDER BY updated_at DESC")
+
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
-def delete_app(slug: str):
+def delete_app(slug: str, user_id: int = 1):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM apps WHERE slug = ?", (slug,))
+    c.execute("DELETE FROM apps WHERE slug = ? AND user_id = ?", (slug, user_id))
     conn.commit()
     conn.close()
+
+# --- User Management Functions ---
+
+def get_user_by_key(key: str) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE key = ?", (key,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return dict(row)
+    return None
+
+def create_user(key: str, comment: str = None) -> int:
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.datetime.utcnow()
+    try:
+        c.execute("INSERT INTO users (key, comment, created_at) VALUES (?, ?, ?)", (key, comment, now))
+        conn.commit()
+        new_id = c.lastrowid
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise ValueError("Key already exists")
+    conn.close()
+    return new_id
+
+def list_users() -> List[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users ORDER BY id ASC")
+    rows = c.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+# --- Stats & Logs ---
+
+def log_action(user_id: int, action: str, slug: Optional[str] = None):
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.datetime.utcnow()
+    c.execute("INSERT INTO access_logs (user_id, action, slug, timestamp) VALUES (?, ?, ?, ?)",
+              (user_id, action, slug, now))
+    conn.commit()
+    conn.close()
+
+def get_users_stats() -> Dict[int, dict]:
+    """
+    Returns statistics per user_id.
+    Structure: { user_id: { 'generated': 0, 'view_stateless': 0, 'apps_count': 0, 'view_persistent': 0 } }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    stats = {}
+
+    # 1. Logs aggregation
+    c.execute('''
+        SELECT user_id, action, COUNT(*) as count
+        FROM access_logs
+        GROUP BY user_id, action
+    ''')
+    rows = c.fetchall()
+
+    for row in rows:
+        uid = row['user_id']
+        action = row['action']
+        count = row['count']
+
+        if uid not in stats:
+            stats[uid] = {'generated': 0, 'view_stateless': 0, 'view_persistent': 0, 'apps_count': 0}
+
+        if action == 'generate':
+            stats[uid]['generated'] = count
+        elif action == 'view_stateless':
+            stats[uid]['view_stateless'] = count
+        elif action == 'view_persistent':
+            stats[uid]['view_persistent'] = count
+
+    # 2. Apps count
+    c.execute('''
+        SELECT user_id, COUNT(*) as count
+        FROM apps
+        GROUP BY user_id
+    ''')
+    rows = c.fetchall()
+    for row in rows:
+        uid = row['user_id']
+        count = row['count']
+        if uid not in stats:
+            stats[uid] = {'generated': 0, 'view_stateless': 0, 'view_persistent': 0, 'apps_count': 0}
+        stats[uid]['apps_count'] = count
+
+    conn.close()
+    return stats

@@ -284,7 +284,7 @@
                             <button class="button is-primary is-fullwidth" onclick="createUser()">Создать пользователя</button>
                          </div>
 
-                         <h3 class="title is-6 mt-5">Список ключей</h3>
+                         <h3 class="title is-6 mt-5">Статистика и Ключи</h3>
                          <div id="users-list">
                              <p class="has-text-grey-light">Загрузка...</p>
                          </div>
@@ -662,15 +662,22 @@
                 if(!response.ok) throw new Error("Нет доступа");
 
                 const users = await response.json();
-                let html = '<table class="table is-fullwidth is-striped"><thead><tr><th>ID</th><th>Key</th><th>Comment</th></tr></thead><tbody>';
+                let html = '<div class="table-container"><table class="table is-fullwidth is-striped is-hoverable"><thead><tr><th>ID</th><th>Key/Comment</th><th title="Создал (Stateless)">Gen</th><th title="Просмотры Stateless">View S</th><th title="Сохранил App">Apps</th><th title="Просмотры App">View P</th></tr></thead><tbody>';
                 users.forEach(u => {
+                    const stats = u.stats || {};
                     html += `<tr>
                         <td>${u.id}</td>
-                        <td class="is-family-monospace">${u.key}</td>
-                        <td>${u.comment || '-'}</td>
+                        <td>
+                            <div class="is-family-monospace is-size-7">${u.key}</div>
+                            <div class="is-size-7 has-text-grey">${u.comment || '-'}</div>
+                        </td>
+                        <td>${stats.generated || 0}</td>
+                        <td>${stats.view_stateless || 0}</td>
+                        <td>${stats.apps_count || 0}</td>
+                        <td>${stats.view_persistent || 0}</td>
                     </tr>`;
                 });
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
                 listDiv.innerHTML = html;
             } catch(e) {
                 listDiv.innerHTML = `<p class="has-text-danger">${e.message}</p>`;

@@ -2,7 +2,7 @@ import sqlite3
 import os
 import datetime
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "apps.db")
 
@@ -29,18 +29,14 @@ def init_db():
     ''')
 
     # 2. Check if apps table needs migration
-    # Check if user_id column exists in apps
     try:
         c.execute("SELECT user_id FROM apps LIMIT 1")
         needs_migration = False
     except sqlite3.OperationalError:
-        # If table exists but user_id is missing, it throws error
-        # Verify if table actually exists first
         c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apps'")
         if c.fetchone():
             needs_migration = True
         else:
-            # Table doesn't exist, create fresh
             needs_migration = False
             _create_new_apps_table(c)
 
@@ -48,39 +44,22 @@ def init_db():
         logging.info("Migrating database to multi-user schema...")
         try:
             conn.execute("BEGIN TRANSACTION;")
-
-            # Disable FKs temporarily for migration
             conn.execute("PRAGMA foreign_keys = OFF;")
 
-            # Ensure Admin User (ID 1) exists for legacy data mapping
-            # We insert a placeholder if not exists, though sync_admin_key will likely be called later.
-            # But for FK integrity if we were enforcing it, we need it.
-            # Since we turned FK off, we are fine for now, but let's be safe.
             now = datetime.datetime.utcnow()
-            # We might not know the key yet, so we'll check if ID 1 exists
             c.execute("SELECT id FROM users WHERE id = 1")
             if not c.fetchone():
-                # Insert a placeholder admin user. The key will be updated by sync_admin_key later.
-                # using a temporary random key or empty string if allowed? Key is unique/not null.
-                # We'll rely on the fact that sync_admin_key runs right after init.
-                # Or better: We assume migration implies we are upgrading.
                 pass
 
-            # Rename old table
             c.execute("ALTER TABLE apps RENAME TO apps_old")
-
-            # Create new table
             _create_new_apps_table(c)
 
-            # Copy data (Assign to User 1)
             c.execute('''
                 INSERT INTO apps (slug, user_id, html_content, created_at, updated_at)
                 SELECT slug, 1, html_content, created_at, updated_at FROM apps_old
             ''')
 
-            # Drop old table
             c.execute("DROP TABLE apps_old")
-
             conn.execute("COMMIT;")
             conn.execute("PRAGMA foreign_keys = ON;")
             logging.info("Migration completed successfully.")
@@ -89,6 +68,18 @@ def init_db():
             conn.execute("ROLLBACK;")
             logging.error(f"Migration failed: {e}")
             raise e
+
+    # 3. Create access_logs table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            action TEXT NOT NULL,
+            slug TEXT,
+            timestamp TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
 
     conn.commit()
     conn.close()
@@ -107,35 +98,26 @@ def _create_new_apps_table(cursor):
     ''')
 
 def sync_admin_key(env_key: str):
-    """
-    Ensures the User with ID 1 exists and has the provided env_key.
-    """
     if not env_key:
         return
 
     conn = get_connection()
     c = conn.cursor()
 
-    # Check User 1
     c.execute("SELECT * FROM users WHERE id = 1")
     admin = c.fetchone()
 
     now = datetime.datetime.utcnow()
 
     if admin:
-        # Verify key matches
         if admin['key'] != env_key:
             logging.warning("Updating Admin (ID 1) key to match environment variable.")
             c.execute("UPDATE users SET key = ? WHERE id = 1", (env_key,))
     else:
         logging.info("Creating Admin User (ID 1) from environment key.")
-        # We need to force ID=1
         try:
             c.execute("INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, 'Admin (System)', ?)", (env_key, now))
         except sqlite3.IntegrityError:
-            # Could happen if key already exists for another ID?
-            # But we are forcing ID 1. If ID 1 is free but key is taken by ID 2?
-            # Ideally we handle this, but for now let's assume clean slate or consistent state.
             logging.error("Failed to insert Admin user. Key might be in use?")
 
     conn.commit()
@@ -146,7 +128,6 @@ def save_app(slug: str, html_content: str, user_id: int = 1):
     c = conn.cursor()
     now = datetime.datetime.utcnow()
 
-    # Check if exists for this user
     c.execute("SELECT slug FROM apps WHERE slug = ? AND user_id = ?", (slug, user_id))
     exists = c.fetchone()
 
@@ -226,3 +207,64 @@ def list_users() -> List[dict]:
     rows = c.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+# --- Stats & Logs ---
+
+def log_action(user_id: int, action: str, slug: Optional[str] = None):
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.datetime.utcnow()
+    c.execute("INSERT INTO access_logs (user_id, action, slug, timestamp) VALUES (?, ?, ?, ?)",
+              (user_id, action, slug, now))
+    conn.commit()
+    conn.close()
+
+def get_users_stats() -> Dict[int, dict]:
+    """
+    Returns statistics per user_id.
+    Structure: { user_id: { 'generated': 0, 'view_stateless': 0, 'apps_count': 0, 'view_persistent': 0 } }
+    """
+    conn = get_connection()
+    c = conn.cursor()
+
+    stats = {}
+
+    # 1. Logs aggregation
+    c.execute('''
+        SELECT user_id, action, COUNT(*) as count
+        FROM access_logs
+        GROUP BY user_id, action
+    ''')
+    rows = c.fetchall()
+
+    for row in rows:
+        uid = row['user_id']
+        action = row['action']
+        count = row['count']
+
+        if uid not in stats:
+            stats[uid] = {'generated': 0, 'view_stateless': 0, 'view_persistent': 0, 'apps_count': 0}
+
+        if action == 'generate':
+            stats[uid]['generated'] = count
+        elif action == 'view_stateless':
+            stats[uid]['view_stateless'] = count
+        elif action == 'view_persistent':
+            stats[uid]['view_persistent'] = count
+
+    # 2. Apps count
+    c.execute('''
+        SELECT user_id, COUNT(*) as count
+        FROM apps
+        GROUP BY user_id
+    ''')
+    rows = c.fetchall()
+    for row in rows:
+        uid = row['user_id']
+        count = row['count']
+        if uid not in stats:
+            stats[uid] = {'generated': 0, 'view_stateless': 0, 'view_persistent': 0, 'apps_count': 0}
+        stats[uid]['apps_count'] = count
+
+    conn.close()
+    return stats

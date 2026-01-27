@@ -16,7 +16,8 @@ from pydantic import BaseModel
 
 from db import (
     init_db, save_app, get_app, list_apps, delete_app,
-    sync_admin_key, get_user_by_key, create_user, list_users
+    sync_admin_key, get_user_by_key, create_user, list_users,
+    log_action, get_users_stats
 )
 
 app = FastAPI(title="Stateless App Runner")
@@ -117,15 +118,28 @@ async def run_app(request: Request, d: str = None, s: str = None):
 
     users = list_users()
     matched_key = None
+    matched_user_id = None
 
-    all_keys = [u['key'] for u in users]
-    if DEFAULT_SECRET not in all_keys:
-        all_keys.append(DEFAULT_SECRET)
+    # We need to find the specific user who owns the key for stats
+    # Optimization: Iterate users and check signature
+    # Also check DEFAULT_SECRET explicitly
 
-    for key in all_keys:
+    # Check default secret first?
+    # If DEFAULT_SECRET is not in DB users for some reason, we treat it as Admin (ID 1)
+    # But sync_admin_key should handle it.
+
+    # Build map key->user_id
+    key_map = {u['key']: u['id'] for u in users}
+
+    # If DEFAULT_SECRET not in map (e.g. env var changed but sync not run yet/failed?)
+    if DEFAULT_SECRET not in key_map:
+        key_map[DEFAULT_SECRET] = 1
+
+    for key, uid in key_map.items():
         expected_sign = sign_data(d, key)
         if hmac.compare_digest(expected_sign, s):
             matched_key = key
+            matched_user_id = uid
             break
 
     if not matched_key:
@@ -133,6 +147,10 @@ async def run_app(request: Request, d: str = None, s: str = None):
 
     key_prefix = matched_key[:5] if len(matched_key) >= 5 else matched_key
     logging.info(f"Access granted using key starting with: {key_prefix}")
+
+    # LOG STATS
+    if matched_user_id:
+        log_action(matched_user_id, 'view_stateless')
 
     try:
         html_content = decompress_payload(d)
@@ -146,6 +164,10 @@ async def run_persistent_app_admin(slug: str):
     app_data = get_app(slug, user_id=1)
     if not app_data:
         raise HTTPException(status_code=404, detail="App not found")
+
+    # LOG STATS
+    log_action(1, 'view_persistent', slug=slug)
+
     return HTMLResponse(content=app_data['html_content'])
 
 # User routes
@@ -154,6 +176,10 @@ async def run_persistent_app_user(user_id: int, slug: str):
     app_data = get_app(slug, user_id=user_id)
     if not app_data:
         raise HTTPException(status_code=404, detail="App not found")
+
+    # LOG STATS
+    log_action(user_id, 'view_persistent', slug=slug)
+
     return HTMLResponse(content=app_data['html_content'])
 
 # --- ADMIN PANEL ---
@@ -186,6 +212,10 @@ async def generate_api(req: GenerateRequest):
     domain = domain.rstrip('/')
 
     full_url = f"{domain}/?d={payload}&s={signature}"
+
+    # LOG STATS
+    log_action(user['id'], 'generate')
+
     return {"url": full_url}
 
 # --- PERSISTENT APPS API ---
@@ -286,4 +316,15 @@ async def list_users_api(key: str):
     if user['id'] != 1:
         raise HTTPException(status_code=403, detail="Only Admin can list users")
 
-    return list_users()
+    users = list_users()
+    stats = get_users_stats()
+
+    # Merge stats into users
+    for u in users:
+        uid = u['id']
+        if uid in stats:
+            u['stats'] = stats[uid]
+        else:
+            u['stats'] = {'generated': 0, 'view_stateless': 0, 'view_persistent': 0, 'apps_count': 0}
+
+    return users

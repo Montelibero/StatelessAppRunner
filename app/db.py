@@ -43,13 +43,7 @@ def init_db():
                 c.execute("ALTER TABLE apps RENAME TO apps_legacy")
                 _create_new_apps_table(c)
 
-        now = datetime.datetime.utcnow()
-        c.execute("SELECT id FROM users WHERE id = 1")
-        if not c.fetchone():
-            c.execute(
-                "INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, ?, ?)",
-                ("legacy-admin", "Admin (Auto-migrated)", now),
-            )
+        _ensure_admin_user(c, "Admin (Auto-migrated)")
 
         c.execute('''
             INSERT OR IGNORE INTO apps (slug, user_id, html_content, created_at, updated_at)
@@ -73,18 +67,13 @@ def init_db():
     if needs_migration:
         logging.info("Migrating database to multi-user schema...")
         try:
-            conn.execute("BEGIN TRANSACTION;")
+            # In SQLite, PRAGMA foreign_keys should be set before BEGIN.
             conn.execute("PRAGMA foreign_keys = OFF;")
+            conn.execute("BEGIN TRANSACTION;")
 
-            now = datetime.datetime.utcnow()
-            c.execute("SELECT id FROM users WHERE id = 1")
-            if not c.fetchone():
-                # Create a placeholder admin to satisfy FK during migration.
-                # sync_admin_key() will update the key later.
-                c.execute(
-                    "INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, ?, ?)",
-                    ("legacy-admin", "Admin (Auto-migrated)", now),
-                )
+            # Create placeholder admin to satisfy FK during migration.
+            # sync_admin_key() will update the key later.
+            _ensure_admin_user(c, "Admin (Auto-migrated)")
 
             c.execute("ALTER TABLE apps RENAME TO apps_old")
             _create_new_apps_table(c)
@@ -96,13 +85,14 @@ def init_db():
 
             c.execute("DROP TABLE apps_old")
             conn.execute("COMMIT;")
-            conn.execute("PRAGMA foreign_keys = ON;")
             logging.info("Migration completed successfully.")
 
         except Exception as e:
             conn.execute("ROLLBACK;")
             logging.error(f"Migration failed: {e}")
             raise e
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON;")
 
     # 3. Create access_logs table
     c.execute('''
@@ -131,6 +121,28 @@ def _create_new_apps_table(cursor):
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
+
+
+def _ensure_admin_user(cursor, comment: str):
+    cursor.execute("SELECT id FROM users WHERE id = 1")
+    if cursor.fetchone():
+        return
+
+    now = datetime.datetime.utcnow()
+    key = "legacy-admin"
+    suffix = 0
+    while True:
+        cursor.execute("SELECT id FROM users WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        if not row or row[0] == 1:
+            break
+        suffix += 1
+        key = f"legacy-admin-{suffix}"
+
+    cursor.execute(
+        "INSERT INTO users (id, key, comment, created_at) VALUES (1, ?, ?, ?)",
+        (key, comment, now),
+    )
 
 def sync_admin_key(env_key: str):
     if not env_key:

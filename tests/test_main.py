@@ -44,3 +44,10 @@ def test_garbage_data():
     # Тут либо 403 (подпись не сойдется), либо 400 (декод упадет)
     # Скорее всего 403, так как HMAC считается от d.
     assert response.status_code == 403
+
+
+def test_admin_ui_does_not_force_mini_prefix_for_new_user_key():
+    response = client.get("/admin")
+    assert response.status_code == 200
+    # User-provided key should be sent as-is, without forced "mini" prefix.
+    assert 'const fullKey = "mini" + uuidPart;' not in response.text

@@ -266,8 +266,7 @@
                             <div class="field">
                                 <label class="label">Новый Ключ</label>
                                 <div class="control has-addons">
-                                    <a class="button is-static">mini</a>
-                                    <input class="input" type="text" id="new-user-key" placeholder="uuid...">
+                                    <input class="input" type="text" id="new-user-key" placeholder="Введите ключ или нажмите генерацию">
                                     <div class="control">
                                         <button class="button is-info" onclick="generateUUIDKey()">
                                             <span class="icon"><i class="ph ph-arrows-clockwise"></i></span>
@@ -686,15 +685,13 @@
 
         async function createUser() {
             const adminKey = document.getElementById('key').value;
-            const uuidPart = document.getElementById('new-user-key').value;
+            const userKey = document.getElementById('new-user-key').value.trim();
             const comment = document.getElementById('new-user-comment').value;
 
-            if(!uuidPart) {
-                showToast("Сгенерируйте или введите UUID", "error");
+            if(!userKey) {
+                showToast("Введите ключ или сгенерируйте его", "error");
                 return;
             }
-
-            const fullKey = "mini" + uuidPart;
 
             try {
                 const response = await fetch('/api/users', {
@@ -702,7 +699,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         admin_key: adminKey,
-                        key: fullKey,
+                        key: userKey,
                         comment: comment
                     })
                 });
@@ -712,7 +709,7 @@
                     throw new Error(err.detail || "Ошибка");
                 }
 
-                showToast(`Пользователь создан: ${fullKey}`);
+                showToast(`Пользователь создан: ${userKey}`);
                 loadUsers();
                 document.getElementById('new-user-key').value = '';
                 document.getElementById('new-user-comment').value = '';

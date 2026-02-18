@@ -22,6 +22,36 @@ from db import (
 
 app = FastAPI(title="Stateless App Runner")
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    query_params = request.query_params
+
+    # Differentiate between system pages and user-provided apps
+    is_runner = path.startswith("/p") or (path == "/" and "d" in query_params and "s" in query_params)
+
+    if is_runner:
+        # Permissive policy for user apps to ensure compatibility with external resources
+        # We also allow embedding (frame-ancestors *) as apps might be used as widgets
+        response.headers["Content-Security-Policy"] = "default-src * 'unsafe-inline' 'unsafe-eval'; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline' 'unsafe-eval'; img-src * data:; font-src *; connect-src *; frame-ancestors *;"
+    else:
+        # Strict policy for Admin and Landing page to protect keys and API
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline'; "
+            "style-src 'self' https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; "
+            "font-src 'self' https://unpkg.com https://cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "connect-src 'self' https://unpkg.com https://cdn.jsdelivr.net; "
+            "frame-ancestors 'self';"
+        )
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 # Ensure DB is initialized
 init_db()
 

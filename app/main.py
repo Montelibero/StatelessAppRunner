@@ -6,11 +6,10 @@ import hashlib
 import secrets
 import logging
 import re
-import uuid
 from typing import Optional, List
 
-from fastapi import FastAPI, Request, HTTPException, Form, Depends, Header
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 

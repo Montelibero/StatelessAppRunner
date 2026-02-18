@@ -22,6 +22,23 @@ from db import (
 
 app = FastAPI(title="Stateless App Runner")
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "style-src 'self' https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline'; "
+        "font-src 'self' https://unpkg.com https://cdn.jsdelivr.net; "
+        "img-src 'self' data:; "
+        "connect-src 'self' https://unpkg.com https://cdn.jsdelivr.net; "
+        "frame-ancestors 'self';"
+    )
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 # Ensure DB is initialized
 init_db()
 

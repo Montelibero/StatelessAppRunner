@@ -12,7 +12,7 @@ lint:
   uv run --with ruff ruff format --check .
 
 typecheck:
-  uv run --with pyright --with python-fasthtml --with fastapi --with python-multipart pyright
+  uv run --with pyright --with pytest --with python-fasthtml --with fastapi --with python-multipart pyright
 
 test-fast:
   uv run --with python-fasthtml pytest tests tests_db -q
@@ -23,10 +23,18 @@ test:
 docs-check:
   test -f docs/architecture.md
   test -f docs/conventions.md
+  test -f docs/golden-principles.md
   test -f docs/glossary.md
   test -f docs/quality-grades.md
+  test -d docs/runbooks
+  test -f docs/runbooks/README.md
+  test -f docs/runbooks/docker-deploy-and-rollback.md
+  test -f docs/runbooks/ci-quality-gate-failure.md
   test -d docs/exec-plans/active
   test -f adr/README.md
+  test -f adr/2026-02-23-fasthtml-ui-migration.md
+  test -f adr/2026-02-23-layered-main-decomposition.md
+  test -f adr/2026-02-23-quality-gates-and-ci.md
 
 arch-test:
   uv run --with python-fasthtml python .linters/arch_test.py

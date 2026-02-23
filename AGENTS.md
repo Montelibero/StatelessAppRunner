@@ -4,9 +4,11 @@
 This repository follows an AI-first workflow: agents may implement changes autonomously, but must preserve behavior, keep changes verifiable, and leave clear project artifacts.
 
 ## Current Architecture
-- ASGI core: `FastAPI` (`app/main.py`).
-- System UI rendering: native `FastHTML` components (`app/ui/pages.py`).
-- Storage: SQLite (`app/db.py`).
+- Composition root: `FastAPI` app wiring in `app/main.py`.
+- Interface layer: HTTP routes/schemas in `app/interface/`.
+- Application layer: payload/auth logic in `app/application/`.
+- UI layer: native `FastHTML` components in `app/ui/pages.py`.
+- Infrastructure layer: SQLite and migrations in `app/db.py`.
 - Tests: `tests/`, `tests_db/`.
 
 ## Contract Invariants
@@ -19,7 +21,7 @@ This repository follows an AI-first workflow: agents may implement changes auton
 1. Create/update an execution plan in `docs/plans/` or `docs/exec-plans/active/`.
 2. Use TDD for behavior changes/bug fixes (test fails first, then pass).
 3. Run full gate before completion: `just check`.
-4. Update docs when architecture/contracts/workflow change.
+4. Update docs and ADRs when architecture/contracts/workflow change.
 
 ## Quality Gates
 Use `Justfile` as the single entry point:
@@ -38,6 +40,8 @@ Use `Justfile` as the single entry point:
 ## Source Of Truth Docs
 - `docs/architecture.md`
 - `docs/conventions.md`
+- `docs/golden-principles.md`
 - `docs/glossary.md`
 - `docs/quality-grades.md`
-- `adr/README.md`
+- `docs/runbooks/`
+- `adr/`

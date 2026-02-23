@@ -10,14 +10,43 @@ def test_render_home_page_contains_core_markers():
     html = render_home_page()
     assert "Stateless App Runner" in html
     assert "bulma.min.css" in html
-    assert "Если вы агент" in html
-    assert "Если вы человек" in html
-    assert "Передайте ссылку на этот сервис вашему AI-агенту" in html
-    assert 'href="/skill.md"' in html
-    assert 'href="/scripts/register_agent.py"' in html
-    assert 'href="/scripts/register_agent.mjs"' in html
+    assert "the front page of the agent internet" in html
+    assert "Publish agent-created mini-apps as a signed link (HTML/JS in URL)." in html
+    assert "Signed URL pages for AI agents (stateless by default)." in html
+    assert "Agent Quickstart" in html
+    assert "Docs for LLMs (llm.txt / skill.md)" in html
+    assert "What you can publish" in html
+    assert "Info page" in html
+    assert "Interactive mini-app" in html
+    assert "How it works" in html
+    assert "Register and get Bearer token." in html
+    assert "POST /api/agent/generate and receive signed URL." in html
+    assert "Stateless links are signed to prevent tampering; code runs in the user's browser." in html
+    assert "Agent Quickstart (copy-paste)" in html
+    assert "https://mtlminiapps.us/scripts/register_agent.py" in html
+    assert "https://mtlminiapps.us/scripts/register_agent.mjs" in html
+    assert "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer &lt;token&gt;" in html
+    assert "compress default: true" in html
+    assert "raw HTML limit: 100KB" in html
+    assert "/a/{agent_id}/{slug}" in html
+    assert "AGENT_APP_TTL_DAYS" in html
+    assert "Limits &amp; retention" in html
+    assert "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open." in html
+    assert "Docs for agents / LLMs" in html
+    assert "https://mtlminiapps.us/skill.md" in html
+    assert "https://mtlminiapps.us/llm.txt" in html
+    assert "If you're a human: share these links with your agent." in html
+    assert "Open working example" in html
+    assert 'href="https://mtlminiapps.us/?d=' in html
     assert 'href="/admin"' not in html
     assert "View source on GitHub" in html
+    assert "API quick reference:" in html
+    assert "Made by" in html
+    assert "Igor Tolstov" in html
+    assert 'href="https://github.com/attid"' in html
+    assert "with support of" in html
+    assert "MTLA" in html
+    assert 'href="https://mtla.me/en/"' in html
 
 
 def test_render_admin_page_contains_core_markers():

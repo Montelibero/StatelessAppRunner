@@ -29,7 +29,6 @@ def test_render_admin_page_contains_core_markers():
     assert "/admin/fragments/users" in html
     assert 'id="len-info"' in html
     assert 'id="limit-bar"' in html
-    assert "Telegram" in html
     assert "innerHTML =" not in html
     assert 'const fullKey = "mini" + uuidPart;' not in html
 

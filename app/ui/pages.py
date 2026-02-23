@@ -83,9 +83,7 @@ async function generate() {
   const anchor = document.getElementById('link-anchor');
   const lenInfo = document.getElementById('len-info');
   const limitBar = document.getElementById('limit-bar');
-  const limitWarn = document.getElementById('limit-warning');
   const hardLimit = 8193;
-  const tgRecommendedLimit = 4096;
   const urlLength = data.url.length;
   const percentage = Math.min((urlLength / hardLimit) * 100, 100);
 
@@ -100,12 +98,6 @@ async function generate() {
     limitBar.style.backgroundColor = 'var(--bulma-warning)';
   } else {
     limitBar.style.backgroundColor = 'var(--bulma-link)';
-  }
-
-  if (urlLength > tgRecommendedLimit) {
-    limitWarn.classList.remove('is-hidden');
-  } else {
-    limitWarn.classList.add('is-hidden');
   }
 
   result.classList.remove('is-hidden');
@@ -412,11 +404,6 @@ def render_admin_page() -> str:
                             Div(
                                 Span(id="link-text", cls="is-size-7"),
                                 cls="result-box p-3",
-                            ),
-                            P(
-                                "В Telegram длинные URL могут открываться нестабильно, лучше держать длину до ~4096 байт.",
-                                id="limit-warning",
-                                cls="help is-danger mt-2 is-hidden",
                             ),
                             Div(
                                 A(

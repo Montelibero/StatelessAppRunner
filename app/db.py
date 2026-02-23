@@ -11,6 +11,16 @@ _local = threading.local()
 
 def get_connection():
     conn = getattr(_local, "conn", None)
+    conn_path = getattr(_local, "conn_path", None)
+
+    # Reopen connection when DB_PATH changes (used by tests via monkeypatch).
+    if conn is not None and conn_path != DB_PATH:
+        try:
+            conn.close()
+        except sqlite3.Error:
+            pass
+        conn = None
+
     if conn is not None:
         try:
             # Check if connection is still open
@@ -26,6 +36,7 @@ def get_connection():
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA journal_mode = WAL;")
         _local.conn = conn
+        _local.conn_path = DB_PATH
     return conn
 
 def init_db():

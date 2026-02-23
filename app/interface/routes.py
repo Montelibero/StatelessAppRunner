@@ -95,6 +95,16 @@ def register_routes(
     app_dir = Path(__file__).resolve().parents[1]
     repo_dir = app_dir.parent
 
+    def _read_registration_script(filename: str) -> str:
+        candidates = (
+            app_dir / "scripts" / filename,
+            repo_dir / "scripts" / filename,
+        )
+        for path in candidates:
+            if path.exists():
+                return path.read_text(encoding="utf-8")
+        raise HTTPException(status_code=404, detail=f"{filename} not found")
+
     def with_user_stats(users: list[dict]) -> list[dict]:
         stats = get_users_stats()
         for user in users:
@@ -417,20 +427,16 @@ def register_routes(
 
     @app.get("/scripts/register_agent.py", response_class=PlainTextResponse)
     async def register_agent_py():
-        path = repo_dir / "scripts" / "register_agent.py"
-        if not path.exists():
-            raise HTTPException(status_code=404, detail="register_agent.py not found")
         return PlainTextResponse(
-            path.read_text(encoding="utf-8"), media_type="text/plain"
+            _read_registration_script("register_agent.py"),
+            media_type="text/plain",
         )
 
     @app.get("/scripts/register_agent.mjs", response_class=PlainTextResponse)
     async def register_agent_mjs():
-        path = repo_dir / "scripts" / "register_agent.mjs"
-        if not path.exists():
-            raise HTTPException(status_code=404, detail="register_agent.mjs not found")
         return PlainTextResponse(
-            path.read_text(encoding="utf-8"), media_type="text/plain"
+            _read_registration_script("register_agent.mjs"),
+            media_type="text/plain",
         )
 
     @app.get("/admin/fragments/apps", response_class=HTMLResponse)

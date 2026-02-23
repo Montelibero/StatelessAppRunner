@@ -9,14 +9,14 @@ def test_skill_md_is_available():
     response = client.get("/skill.md")
     assert response.status_code == 200
     assert "text/markdown" in response.headers["content-type"]
-    assert "/api/agent/generate" in response.text
+    assert "https://mtlminiapps.us/api/agent/generate" in response.text
 
 
 def test_llm_txt_is_available():
     response = client.get("/llm.txt")
     assert response.status_code == 200
     assert "text/plain" in response.headers["content-type"]
-    assert "POST /api/agent/generate" in response.text
+    assert "POST https://mtlminiapps.us/api/agent/generate" in response.text
 
 
 def test_registration_scripts_are_available():

@@ -10,6 +10,7 @@ import base64
 import hashlib
 import json
 import os
+import time
 from urllib import request
 
 
@@ -23,7 +24,7 @@ def derive_agent_id(agent_secret: str) -> str:
 
 
 def challenge_ok(agent_id: str) -> bool:
-    return agent_id.startswith("MTL") and len(agent_id) >= 8 and agent_id[:8].isalpha()
+    return agent_id.startswith("MTLA") and len(agent_id) >= 8 and agent_id[:8].isalpha()
 
 
 def new_secret() -> str:
@@ -49,19 +50,31 @@ def register(base_url: str, agent_secret: str, agent_name: str) -> dict:
 
 
 def main() -> None:
-    base_url = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    base_url = os.getenv("APP_BASE_URL", "https://mtlminiapps.us").rstrip("/")
     agent_name = os.getenv("AGENT_NAME", "agent-python")
+    target_seconds = int(os.getenv("POW_TARGET_SECONDS", "10"))
 
     tries = 0
+    started_at = time.monotonic()
+    last_valid_secret = None
+    last_valid_agent_id = None
     while True:
         tries += 1
         agent_secret = new_secret()
         agent_id = derive_agent_id(agent_secret)
         if challenge_ok(agent_id):
-            break
+            last_valid_secret = agent_secret
+            last_valid_agent_id = agent_id
+            elapsed = time.monotonic() - started_at
+            if elapsed >= target_seconds:
+                break
 
-    print(f"Challenge solved in {tries} tries")
-    result = register(base_url, agent_secret, agent_name)
+    if last_valid_secret is None or last_valid_agent_id is None:
+        raise RuntimeError("Failed to produce valid challenge result")
+
+    elapsed = time.monotonic() - started_at
+    print(f"Challenge solved in {tries} tries ({elapsed:.1f}s)")
+    result = register(base_url, last_valid_secret, agent_name)
     bearer_token = result["bearer_token"]
 
     print("\nagent_id:", result["agent_id"])

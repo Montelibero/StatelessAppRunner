@@ -6,6 +6,23 @@ from main import app
 client = TestClient(app)
 
 
+def test_validate_agent_secret_requires_mtla_prefix():
+    ok, _ = routes_module.validate_agent_secret("bad-secret")
+    assert ok is False
+
+    original = routes_module.derive_agent_id
+    try:
+        routes_module.derive_agent_id = lambda _s: "MTLAAAAAZZZZ"  # type: ignore[assignment]
+        ok_mtla, _ = routes_module.validate_agent_secret("seed")
+        assert ok_mtla is True
+
+        routes_module.derive_agent_id = lambda _s: "MTLBAAAAZZZZ"  # type: ignore[assignment]
+        ok_mtl, _ = routes_module.validate_agent_secret("seed")
+        assert ok_mtl is False
+    finally:
+        routes_module.derive_agent_id = original  # type: ignore[assignment]
+
+
 def test_agent_register_rejects_invalid_secret():
     response = client.post("/api/agent/register", json={"agent_secret": "bad-secret"})
     assert response.status_code == 400

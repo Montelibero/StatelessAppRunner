@@ -20,6 +20,9 @@ test-fast:
 test:
   uv run --with pytest --with python-fasthtml --with fastapi --with python-multipart --with pytest-cov pytest -q --cov=app --cov-report=term --cov-fail-under=85
 
+run:
+  uv run --with fastapi --with uvicorn --with python-fasthtml --with python-multipart python -m uvicorn main:app --app-dir app --host 127.0.0.1 --port 8000
+
 docs-check:
   test -f docs/architecture.md
   test -f docs/conventions.md

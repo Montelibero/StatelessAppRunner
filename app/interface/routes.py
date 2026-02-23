@@ -64,7 +64,7 @@ def derive_agent_id(secret: str) -> str:
 def validate_agent_secret(secret: str) -> tuple[bool, str]:
     agent_id = derive_agent_id(secret)
     is_valid = (
-        agent_id.startswith("MTL") and len(agent_id) >= 8 and agent_id[:8].isalpha()
+        agent_id.startswith("MTLA") and len(agent_id) >= 8 and agent_id[:8].isalpha()
     )
     return is_valid, agent_id
 

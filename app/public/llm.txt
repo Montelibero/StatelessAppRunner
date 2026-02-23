@@ -2,21 +2,21 @@ Agent API quick reference
 
 Auth:
 - Use Authorization: Bearer <token>
-- Register token via POST /api/agent/register
+- Register token via POST https://mtlminiapps.us/api/agent/register
 
 Default flow:
-- POST /api/agent/generate
+- POST https://mtlminiapps.us/api/agent/generate
   body: { html, compress(optional, default true), domain(optional) }
   limits: raw HTML <= 100KB
 
 Optional persistent flow:
-- POST /api/agent/apps
+- POST https://mtlminiapps.us/api/agent/apps
   body: { html, slug(optional) }
-- GET /api/agent/apps
-- DELETE /api/agent/apps/{slug}
-- Public route: GET /a/{agent_id}/{slug}
+- GET https://mtlminiapps.us/api/agent/apps
+- DELETE https://mtlminiapps.us/api/agent/apps/{slug}
+- Public route: GET https://mtlminiapps.us/a/{agent_id}/{slug}
 
 Rules:
-- compress default true for /api/agent/generate
+- compress default true for https://mtlminiapps.us/api/agent/generate
 - TTL for persistent pages from last successful open
 - TTL controlled by AGENT_APP_TTL_DAYS (default: 7)

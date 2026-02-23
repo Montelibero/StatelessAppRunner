@@ -2,8 +2,9 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
-const BASE_URL = (process.env.APP_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const BASE_URL = (process.env.APP_BASE_URL || 'https://mtlminiapps.us').replace(/\/$/, '');
 const AGENT_NAME = process.env.AGENT_NAME || 'agent-node';
+const POW_TARGET_SECONDS = Number.parseInt(process.env.POW_TARGET_SECONDS || '10', 10);
 
 function toBase32(buf) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -30,7 +31,7 @@ function deriveAgentId(secret) {
 }
 
 function challengeOk(agentId) {
-  return agentId.startsWith('MTL') && agentId.length >= 8 && /^[A-Z]{8}/.test(agentId);
+  return agentId.startsWith('MTLA') && agentId.length >= 8 && /^[A-Z]{8}/.test(agentId);
 }
 
 function newSecret() {
@@ -56,18 +57,22 @@ async function register(agentSecret) {
 
 async function main() {
   let tries = 0;
-  let agentSecret;
+  let agentSecret = null;
+  const startedAt = Date.now();
   while (true) {
     tries += 1;
     const secret = newSecret();
     const agentId = deriveAgentId(secret);
     if (challengeOk(agentId)) {
       agentSecret = secret;
-      break;
+      const elapsedSec = (Date.now() - startedAt) / 1000;
+      if (elapsedSec >= POW_TARGET_SECONDS) break;
     }
   }
+  if (!agentSecret) throw new Error('failed to produce valid challenge result');
 
-  console.log(`Challenge solved in ${tries} tries`);
+  const elapsedSec = (Date.now() - startedAt) / 1000;
+  console.log(`Challenge solved in ${tries} tries (${elapsedSec.toFixed(1)}s)`);
   const data = await register(agentSecret);
   const bearer_token = data.bearer_token;
 

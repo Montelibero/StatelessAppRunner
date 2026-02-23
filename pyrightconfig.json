@@ -1,0 +1,10 @@
+{
+  "include": ["app", "tests", "tests_db"],
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["app"]
+    }
+  ],
+  "typeCheckingMode": "basic"
+}

@@ -3,20 +3,20 @@ from main import app, DEFAULT_SECRET
 
 client = TestClient(app)
 
+
 def test_admin_page():
     response = client.get("/admin")
     assert response.status_code == 200
     assert "Генератор ссылок" in response.text
 
+
 def test_generation_and_execution_flow():
     html_source = "<h1>Hello Test</h1>"
 
     # 1. Генерируем ссылку через API
-    gen_response = client.post("/api/generate", json={
-        "domain": "",
-        "key": DEFAULT_SECRET,
-        "html": html_source
-    })
+    gen_response = client.post(
+        "/api/generate", json={"domain": "", "key": DEFAULT_SECRET, "html": html_source}
+    )
     assert gen_response.status_code == 200
     url = gen_response.json()["url"]
 
@@ -31,11 +31,13 @@ def test_generation_and_execution_flow():
     assert run_response.text == html_source
     assert run_response.headers["content-type"] == "text/html; charset=utf-8"
 
+
 def test_bad_signature():
     # Берем валидный payload, но ломаем подпись
     response = client.get("/?d=SGVsbG8=&s=FAKE_SIGNATURE")
     assert response.status_code == 403
     assert "Integrity Check Failed" in response.json()["detail"]
+
 
 def test_garbage_data():
     # Берем валидную подпись (технически), но мусор вместо данных (сложно сделать без ключа, но допустим)

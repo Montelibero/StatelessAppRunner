@@ -1,4 +1,3 @@
-import pytest
 from fastapi.testclient import TestClient
 from main import app, DEFAULT_SECRET
 import db
@@ -6,6 +5,7 @@ import uuid
 
 client = TestClient(app)
 TEST_KEY = DEFAULT_SECRET
+
 
 def test_db_operations():
     """Test direct DB operations"""
@@ -26,28 +26,28 @@ def test_db_operations():
     new_html = "<h2>Updated</h2>"
     db.save_app(slug, new_html)
     updated_app = db.get_app(slug)
+    assert updated_app is not None
     assert updated_app["html_content"] == new_html
 
     # List
     apps = db.list_apps()
     assert len(apps) >= 1
-    slugs = [a['slug'] for a in apps]
+    slugs = [a["slug"] for a in apps]
     assert slug in slugs
 
     # Delete
     db.delete_app(slug)
     assert db.get_app(slug) is None
 
+
 def test_api_save_app():
     """Test POST /api/apps"""
     slug = "api-test"
     html = "<p>API Content</p>"
 
-    response = client.post("/api/apps", json={
-        "key": TEST_KEY,
-        "slug": slug,
-        "html": html
-    })
+    response = client.post(
+        "/api/apps", json={"key": TEST_KEY, "slug": slug, "html": html}
+    )
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
@@ -55,16 +55,17 @@ def test_api_save_app():
 
     # Verify in DB
     app_data = db.get_app(slug)
+    assert app_data is not None
     assert app_data["html_content"] == html
+
 
 def test_api_save_app_invalid_key():
     """Test POST /api/apps with invalid key"""
-    response = client.post("/api/apps", json={
-        "key": "invalid-key",
-        "slug": "fail",
-        "html": "..."
-    })
+    response = client.post(
+        "/api/apps", json={"key": "invalid-key", "slug": "fail", "html": "..."}
+    )
     assert response.status_code == 403
+
 
 def test_api_list_apps():
     """Test GET /api/apps"""
@@ -77,6 +78,7 @@ def test_api_list_apps():
     slugs = [item["slug"] for item in data]
     assert "app1" in slugs
 
+
 def test_api_get_app():
     """Test GET /api/apps/{slug}"""
     slug = "get-test"
@@ -86,6 +88,7 @@ def test_api_get_app():
     assert response.status_code == 200
     assert response.json()["slug"] == slug
     assert response.json()["html_content"] == "content"
+
 
 def test_api_delete_app():
     """Test DELETE /api/apps/{slug}"""
@@ -98,22 +101,23 @@ def test_api_delete_app():
 
     assert db.get_app(slug) is None
 
+
 def test_isolation_and_routing():
     # 1. Create User
     ukey = f"mini{uuid.uuid4()}"
-    resp = client.post("/api/users", json={
-        "admin_key": TEST_KEY,
-        "key": ukey,
-        "comment": "User 2"
-    })
+    resp = client.post(
+        "/api/users", json={"admin_key": TEST_KEY, "key": ukey, "comment": "User 2"}
+    )
     assert resp.status_code == 200
-    uid = resp.json()['id']
+    uid = resp.json()["id"]
 
     # 2. User saves "game"
     client.post("/api/apps", json={"key": ukey, "slug": "game", "html": "User Game"})
 
     # 3. Admin saves "game"
-    client.post("/api/apps", json={"key": TEST_KEY, "slug": "game", "html": "Admin Game"})
+    client.post(
+        "/api/apps", json={"key": TEST_KEY, "slug": "game", "html": "Admin Game"}
+    )
 
     # 4. Access via /p/...
     # Admin (User 1) -> /p/game
@@ -129,31 +133,34 @@ def test_isolation_and_routing():
     # 5. Access via API (Get Details)
     # Admin API -> Admin Game
     resp = client.get(f"/api/apps/game?key={TEST_KEY}")
-    assert resp.json()['html_content'] == "Admin Game"
+    assert resp.json()["html_content"] == "Admin Game"
 
     # User API -> User Game
     resp = client.get(f"/api/apps/game?key={ukey}")
-    assert resp.json()['html_content'] == "User Game"
+    assert resp.json()["html_content"] == "User Game"
+
 
 def test_admin_management_safety():
     # 1. Create User
     ukey = f"mini{uuid.uuid4()}"
-    resp = client.post("/api/users", json={
-        "admin_key": TEST_KEY,
-        "key": ukey,
-        "comment": "User 3"
-    })
-    uid = resp.json()['id']
+    resp = client.post(
+        "/api/users", json={"admin_key": TEST_KEY, "key": ukey, "comment": "User 3"}
+    )
+    uid = resp.json()["id"]
 
     # 2. User 3 saves "tool"
     client.post("/api/apps", json={"key": ukey, "slug": "tool", "html": "User Tool"})
 
     # 3. Admin saves "tool" (Collision)
-    client.post("/api/apps", json={"key": TEST_KEY, "slug": "tool", "html": "Admin Tool"})
+    client.post(
+        "/api/apps", json={"key": TEST_KEY, "slug": "tool", "html": "Admin Tool"}
+    )
 
     # 4. Admin deletes User 3's "tool" specifically
     # Should use ?target_user_id=uid
-    resp = client.request("DELETE", f"/api/apps/tool?target_user_id={uid}", json={"key": TEST_KEY})
+    resp = client.request(
+        "DELETE", f"/api/apps/tool?target_user_id={uid}", json={"key": TEST_KEY}
+    )
     assert resp.status_code == 200
 
     # Verify User 3's tool is gone
@@ -163,26 +170,30 @@ def test_admin_management_safety():
     # Verify Admin's tool is STILL THERE
     app_admin = db.get_app("tool", user_id=1)
     assert app_admin is not None
-    assert app_admin['html_content'] == "Admin Tool"
+    assert app_admin["html_content"] == "Admin Tool"
 
     # 5. Admin saves FOR User 3 (Create new)
-    client.post("/api/apps", json={
-        "key": TEST_KEY,
-        "slug": "tool",
-        "html": "Admin Created for User 3",
-        "owner_id": uid
-    })
+    client.post(
+        "/api/apps",
+        json={
+            "key": TEST_KEY,
+            "slug": "tool",
+            "html": "Admin Created for User 3",
+            "owner_id": uid,
+        },
+    )
 
     # Verify User 3 has it
     app_u3_new = db.get_app("tool", user_id=uid)
     assert app_u3_new is not None
-    assert app_u3_new['html_content'] == "Admin Created for User 3"
+    assert app_u3_new["html_content"] == "Admin Created for User 3"
 
     # Verify Admin's tool is UNTOUCHED
     app_admin = db.get_app("tool", user_id=1)
-    assert app_admin['html_content'] == "Admin Tool"
+    assert app_admin is not None
+    assert app_admin["html_content"] == "Admin Tool"
 
     # 6. Admin GET User 3's app explicitly
     resp = client.get(f"/api/apps/tool?key={TEST_KEY}&target_user_id={uid}")
     assert resp.status_code == 200
-    assert resp.json()['html_content'] == "Admin Created for User 3"
+    assert resp.json()["html_content"] == "Admin Created for User 3"

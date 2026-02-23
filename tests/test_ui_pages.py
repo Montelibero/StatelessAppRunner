@@ -13,5 +13,5 @@ def test_render_admin_page_contains_core_markers():
     html = render_admin_page()
     assert "Генератор ссылок" in html
     assert "bulma.min.css" in html
-    assert "id=\"generate-btn\"" in html
+    assert 'id="generate-btn"' in html
     assert 'const fullKey = "mini" + uuidPart;' not in html

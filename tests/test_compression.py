@@ -1,10 +1,8 @@
-
-import pytest
-import re
 from fastapi.testclient import TestClient
 from main import app, minify_html, DEFAULT_SECRET
 
 client = TestClient(app)
+
 
 def test_minify_html_comments():
     html = """
@@ -18,6 +16,7 @@ def test_minify_html_comments():
     assert "<!--" not in minified
     assert "-->" not in minified
     assert "<p>Hello</p>" in minified
+
 
 def test_minify_html_js_comments():
     html = """
@@ -45,6 +44,7 @@ def test_minify_html_js_comments():
     # Ensure content inside escaped quotes is preserved
     assert '"foo \\" // bar"' in minified
 
+
 def test_minify_css_comments():
     html = """
     <style>
@@ -63,6 +63,7 @@ def test_minify_css_comments():
     assert "background: #fff;" in minified
     assert ".class { width: 100%; }" in minified
 
+
 def test_minify_html_non_script_content():
     html = """
     <p>Visit http://example.com</p>
@@ -73,6 +74,7 @@ def test_minify_html_non_script_content():
     assert "Visit http://example.com" in minified
     assert 'href="//example.com"' in minified
 
+
 def test_minify_html_whitespace():
     html = """
     <div>
@@ -82,6 +84,7 @@ def test_minify_html_whitespace():
     minified = minify_html(html)
     # It collapses whitespace to single space
     assert "<div> <p> Hello World </p> </div>" == minified
+
 
 def test_generate_api_with_compression():
     valid_key = DEFAULT_SECRET
@@ -95,22 +98,28 @@ def test_generate_api_with_compression():
     """
 
     # 1. Without compression
-    response = client.post("/api/generate", json={
-        "domain": "http://test.com",
-        "key": valid_key,
-        "html": html,
-        "compress": False
-    })
+    response = client.post(
+        "/api/generate",
+        json={
+            "domain": "http://test.com",
+            "key": valid_key,
+            "html": html,
+            "compress": False,
+        },
+    )
     assert response.status_code == 200
     url_no_compress = response.json()["url"]
 
     # 2. With compression
-    response_compressed = client.post("/api/generate", json={
-        "domain": "http://test.com",
-        "key": valid_key,
-        "html": html,
-        "compress": True
-    })
+    response_compressed = client.post(
+        "/api/generate",
+        json={
+            "domain": "http://test.com",
+            "key": valid_key,
+            "html": html,
+            "compress": True,
+        },
+    )
     assert response_compressed.status_code == 200
     url_compressed = response_compressed.json()["url"]
 

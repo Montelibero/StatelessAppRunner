@@ -1,5 +1,4 @@
 import sys
-import os
 import pytest
 from pathlib import Path
 
@@ -7,8 +6,9 @@ from pathlib import Path
 app_dir = Path(__file__).parent.parent / "app"
 sys.path.insert(0, str(app_dir))
 
-import db
-from main import DEFAULT_SECRET
+import db  # noqa: E402
+from main import DEFAULT_SECRET  # noqa: E402
+
 
 @pytest.fixture(autouse=True)
 def test_db(monkeypatch, tmp_path):

@@ -6,7 +6,8 @@ from pathlib import Path
 app_dir = Path(__file__).parent.parent / "app"
 sys.path.insert(0, str(app_dir))
 
-import db
+import db  # noqa: E402
+
 
 @pytest.fixture
 def isolated_db(monkeypatch, tmp_path):
@@ -25,6 +26,7 @@ def isolated_db(monkeypatch, tmp_path):
 
     return db_file
 
+
 def test_create_user_success(isolated_db):
     key = "test-key-new"
     comment = "New User"
@@ -35,6 +37,7 @@ def test_create_user_success(isolated_db):
     assert user is not None
     assert user["key"] == key
     assert user["comment"] == comment
+
 
 def test_create_user_duplicate(isolated_db):
     key = "duplicate-key"

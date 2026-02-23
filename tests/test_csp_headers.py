@@ -3,6 +3,7 @@ from main import app
 
 client = TestClient(app)
 
+
 def test_security_headers_system_routes():
     # Strict headers for system pages
     paths = ["/", "/admin"]
@@ -14,7 +15,10 @@ def test_security_headers_system_routes():
         assert "Content-Security-Policy" in response.headers
         csp = response.headers["Content-Security-Policy"]
         assert "default-src 'self'" in csp
-        assert "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline'" in csp
+        assert (
+            "script-src 'self' https://unpkg.com https://cdn.jsdelivr.net 'unsafe-inline'"
+            in csp
+        )
 
         # Check X-Frame-Options (Strict)
         assert response.headers["X-Frame-Options"] == "SAMEORIGIN"
@@ -22,6 +26,7 @@ def test_security_headers_system_routes():
         # General headers
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+
 
 def test_security_headers_runner_routes():
     # Permissive headers for runner routes
@@ -39,6 +44,7 @@ def test_security_headers_runner_routes():
 
     # X-Frame-Options should NOT be SAMEORIGIN (it might be absent or different)
     assert response.headers.get("X-Frame-Options") != "SAMEORIGIN"
+
 
 def test_security_headers_persistent_routes():
     # Permissive headers for /p routes

@@ -9,6 +9,7 @@ from fasthtml.common import (
     I,
     Input,
     Label,
+    Li,
     Link,
     Meta,
     NotStr,
@@ -19,6 +20,7 @@ from fasthtml.common import (
     Style,
     Textarea,
     Title,
+    Ul,
     to_xml,
 )
 
@@ -34,6 +36,8 @@ HOME_STYLE = """
 ADMIN_STYLE = """
 .textarea-code { font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace; min-height: 250px; }
 .result-box { border: 1px solid var(--bulma-border); word-break: break-all; max-height: 200px; overflow-y: auto; font-family: monospace; }
+.admin-tabs .tabs { margin-bottom: 0.75rem; }
+.admin-tabs .tabs li a { font-weight: 600; }
 """
 
 
@@ -395,21 +399,26 @@ def render_admin_page() -> str:
                         Div(
                             Div(
                                 Div(
-                                    A(
-                                        "Сохраненные (DB)",
-                                        onclick="switchTab('saved')",
+                                    Ul(
+                                        Li(
+                                            A(
+                                                "Сохраненные (DB)",
+                                                onclick="switchTab('saved')",
+                                            ),
+                                            id="tab-saved",
+                                            cls="is-active",
+                                        ),
+                                        Li(
+                                            A(
+                                                "Пользователи",
+                                                onclick="switchTab('users')",
+                                            ),
+                                            id="tab-users",
+                                        ),
                                     ),
-                                    id="tab-saved",
-                                    cls="is-active",
+                                    cls="tabs is-boxed is-fullwidth",
                                 ),
-                                Div(
-                                    A(
-                                        "Пользователи",
-                                        onclick="switchTab('users')",
-                                    ),
-                                    id="tab-users",
-                                ),
-                                cls="tabs is-centered mt-4",
+                                cls="admin-tabs mt-4",
                             ),
                             Div(
                                 Div(
@@ -466,11 +475,14 @@ def render_admin_page() -> str:
                                     Div(
                                         Label("Новый Ключ", cls="label"),
                                         Div(
-                                            Input(
-                                                cls="input",
-                                                type="text",
-                                                id="new-user-key",
-                                                placeholder="Введите ключ или нажмите генерацию",
+                                            Div(
+                                                Input(
+                                                    cls="input",
+                                                    type="text",
+                                                    id="new-user-key",
+                                                    placeholder="Введите ключ или нажмите генерацию",
+                                                ),
+                                                cls="control is-expanded",
                                             ),
                                             Div(
                                                 Button(
@@ -483,7 +495,7 @@ def render_admin_page() -> str:
                                                 ),
                                                 cls="control",
                                             ),
-                                            cls="control has-addons",
+                                            cls="field has-addons",
                                         ),
                                         cls="field",
                                     ),

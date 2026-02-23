@@ -26,6 +26,15 @@ def get_agent_app_ttl_days() -> int:
     return value if value > 0 else 7
 
 
+def _get_env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -68,12 +77,22 @@ sync_admin_key(DEFAULT_SECRET)
 
 DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "https://mtlminiapps.us")
 AGENT_APP_TTL_DAYS = get_agent_app_ttl_days()
+AGENT_MAX_PERSIST_APPS = _get_env_int("AGENT_MAX_PERSIST_APPS", 80)
+AGENT_MAX_PERSIST_BYTES = _get_env_int("AGENT_MAX_PERSIST_BYTES", 5_000_000)
+AGENT_CREATE_RATE_PER_MIN = _get_env_int("AGENT_CREATE_RATE_PER_MIN", 5)
+AGENT_CREATE_RATE_PER_HOUR = _get_env_int("AGENT_CREATE_RATE_PER_HOUR", 20)
+AGENT_CREATE_RATE_PER_DAY = _get_env_int("AGENT_CREATE_RATE_PER_DAY", 40)
 
 register_routes(
     app,
     default_secret=DEFAULT_SECRET,
     default_domain=DEFAULT_DOMAIN,
     agent_app_ttl_days=AGENT_APP_TTL_DAYS,
+    agent_max_persist_apps=AGENT_MAX_PERSIST_APPS,
+    agent_max_persist_bytes=AGENT_MAX_PERSIST_BYTES,
+    agent_create_rate_per_min=AGENT_CREATE_RATE_PER_MIN,
+    agent_create_rate_per_hour=AGENT_CREATE_RATE_PER_HOUR,
+    agent_create_rate_per_day=AGENT_CREATE_RATE_PER_DAY,
 )
 
 __all__ = [

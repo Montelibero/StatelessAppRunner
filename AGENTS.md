@@ -38,6 +38,7 @@ Use `Justfile` as the single entry point:
 - New dependency or architecture shift should be documented in `adr/`.
 - Do not add any new text, warnings, limits, UI copy, or behavior that the user did not explicitly request.
 - If a new idea appears during implementation, propose it first and wait for explicit user confirmation (`+`) before applying it.
+- If there is more than a 20% chance the task is misunderstood, or if it can be implemented in more than one reasonable way, do not implement immediately; ask a clarifying question first.
 
 ## Source Of Truth Docs
 - `docs/architecture.md`

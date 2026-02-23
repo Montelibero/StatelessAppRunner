@@ -1,4 +1,5 @@
 from ui.pages import (
+    render_agents_fragment,
     render_admin_page,
     render_apps_fragment,
     render_home_page,
@@ -21,17 +22,26 @@ def test_render_home_page_contains_core_markers():
     assert "How it works" in html
     assert "Register and get Bearer token." in html
     assert "POST /api/agent/generate and receive signed URL." in html
-    assert "Stateless links are signed to prevent tampering; code runs in the user's browser." in html
+    assert (
+        "Stateless links are signed to prevent tampering; code runs in the user's browser."
+        in html
+    )
     assert "Agent Quickstart (copy-paste)" in html
     assert "https://mtlminiapps.us/scripts/register_agent.py" in html
     assert "https://mtlminiapps.us/scripts/register_agent.mjs" in html
-    assert "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer &lt;token&gt;" in html
+    assert (
+        "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer &lt;token&gt;"
+        in html
+    )
     assert "compress default: true" in html
     assert "raw HTML limit: 100KB" in html
     assert "/a/{agent_id}/{slug}" in html
     assert "AGENT_APP_TTL_DAYS" in html
     assert "Limits &amp; retention" in html
-    assert "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open." in html
+    assert (
+        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open."
+        in html
+    )
     assert "Docs for agents / LLMs" in html
     assert "https://mtlminiapps.us/skill.md" in html
     assert "https://mtlminiapps.us/llm.txt" in html
@@ -60,8 +70,12 @@ def test_render_admin_page_contains_core_markers():
     assert 'id="tab-users"' in html
     assert 'id="content-saved"' in html
     assert 'id="users-list"' in html
+    assert 'id="tab-agents"' in html
+    assert 'id="content-agents"' in html
+    assert 'id="agents-list"' in html
     assert "/admin/fragments/apps" in html
     assert "/admin/fragments/users" in html
+    assert "/admin/fragments/agents" in html
     assert 'id="len-info"' in html
     assert 'id="limit-bar"' in html
     assert "innerHTML =" not in html
@@ -121,3 +135,26 @@ def test_render_users_fragment_states():
     assert "Список пользователей" in html
     assert "mini_abc" in html
     assert "View /p 3" in html
+
+
+def test_render_agents_fragment_states():
+    assert "has-text-danger" in render_agents_fragment(error="Ошибка")
+    assert "Введите admin ключ" in render_agents_fragment(info="Введите admin ключ")
+    assert "пуст" in render_agents_fragment([])
+
+    html = render_agents_fragment(
+        [
+            {
+                "id": 1,
+                "agent_id": "MTLAAAAAZZZ",
+                "name": "agent-1",
+                "apps_count": 2,
+                "tokens_count": 3,
+                "last_seen_at": "2026-01-01T00:00:00+00:00",
+            }
+        ]
+    )
+    assert "Список агентов" in html
+    assert "agent-1" in html
+    assert "Apps 2" in html
+    assert "Tokens 3" in html

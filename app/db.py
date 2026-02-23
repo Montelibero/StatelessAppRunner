@@ -194,6 +194,21 @@ def init_db():
     c.execute(
         "CREATE INDEX IF NOT EXISTS idx_agent_tokens_owner ON agent_tokens(agent_ref_id)"
     )
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agent_access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_ref_id INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            slug TEXT,
+            timestamp TIMESTAMP,
+            FOREIGN KEY (agent_ref_id) REFERENCES agents(id)
+        )
+        """
+    )
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_logs_owner ON agent_access_logs(agent_ref_id)"
+    )
 
     conn.commit()
 
@@ -652,3 +667,110 @@ def delete_agent_app(agent_ref_id: int, slug: str) -> None:
             "DELETE FROM agent_apps WHERE agent_ref_id = ? AND slug = ?",
             (agent_ref_id, slug),
         )
+
+
+def set_agent_active(agent_ref_id: int, is_active: bool) -> None:
+    conn = get_connection()
+    now = _utc_now_iso()
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE agents SET is_active = ?, last_seen_at = ? WHERE id = ?",
+            (1 if is_active else 0, now, agent_ref_id),
+        )
+
+
+def log_agent_action(
+    agent_ref_id: int, action: str, slug: Optional[str] = None
+) -> None:
+    conn = get_connection()
+    now = _utc_now_iso()
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO agent_access_logs (agent_ref_id, action, slug, timestamp)
+            VALUES (?, ?, ?, ?)
+            """,
+            (agent_ref_id, action, slug, now),
+        )
+
+
+def list_agents_with_stats() -> List[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT
+            a.id,
+            a.agent_id,
+            a.name,
+            a.created_at,
+            a.last_seen_at,
+            a.is_active,
+            COALESCE(apps.apps_count, 0) AS apps_count,
+            COALESCE(tokens.tokens_count, 0) AS tokens_count,
+            COALESCE(logs.stateless_generated_count, 0) AS stateless_generated_count,
+            COALESCE(logs.stateless_view_count, 0) AS stateless_view_count,
+            COALESCE(logs.persistent_created_count, 0) AS persistent_created_count
+        FROM agents a
+        LEFT JOIN (
+            SELECT agent_ref_id, COUNT(*) AS apps_count
+            FROM agent_apps
+            GROUP BY agent_ref_id
+        ) apps ON apps.agent_ref_id = a.id
+        LEFT JOIN (
+            SELECT agent_ref_id, COUNT(*) AS tokens_count
+            FROM agent_tokens
+            GROUP BY agent_ref_id
+        ) tokens ON tokens.agent_ref_id = a.id
+        LEFT JOIN (
+            SELECT
+                agent_ref_id,
+                SUM(CASE WHEN action = 'generate_stateless' THEN 1 ELSE 0 END) AS stateless_generated_count,
+                SUM(CASE WHEN action = 'view_stateless' THEN 1 ELSE 0 END) AS stateless_view_count,
+                SUM(CASE WHEN action = 'create_persistent' THEN 1 ELSE 0 END) AS persistent_created_count
+            FROM agent_access_logs
+            GROUP BY agent_ref_id
+        ) logs ON logs.agent_ref_id = a.id
+        ORDER BY a.id ASC
+        """
+    )
+    return [dict(row) for row in c.fetchall()]
+
+
+def get_agent_persist_usage(agent_ref_id: int) -> dict:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT
+            COUNT(*) AS apps_count,
+            COALESCE(SUM(LENGTH(CAST(html_content AS BLOB))), 0) AS bytes_total
+        FROM agent_apps
+        WHERE agent_ref_id = ?
+        """,
+        (agent_ref_id,),
+    )
+    row = c.fetchone()
+    if not row:
+        return {"apps_count": 0, "bytes_total": 0}
+    return {
+        "apps_count": int(row["apps_count"]),
+        "bytes_total": int(row["bytes_total"]),
+    }
+
+
+def count_agent_actions_since(agent_ref_id: int, action: str, since_iso: str) -> int:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT COUNT(*) AS cnt
+        FROM agent_access_logs
+        WHERE agent_ref_id = ? AND action = ? AND timestamp >= ?
+        """,
+        (agent_ref_id, action, since_iso),
+    )
+    row = c.fetchone()
+    return int(row["cnt"]) if row else 0

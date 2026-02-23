@@ -133,8 +133,10 @@ function switchTab(tabName) {
   currentTab = tabName;
   document.getElementById('content-saved').classList.add('is-hidden');
   document.getElementById('content-users').classList.add('is-hidden');
+  document.getElementById('content-agents').classList.add('is-hidden');
   document.getElementById('tab-saved').classList.remove('is-active');
   document.getElementById('tab-users').classList.remove('is-active');
+  document.getElementById('tab-agents').classList.remove('is-active');
 
   if (tabName === 'saved') {
     document.getElementById('content-saved').classList.remove('is-hidden');
@@ -144,6 +146,10 @@ function switchTab(tabName) {
     document.getElementById('content-users').classList.remove('is-hidden');
     document.getElementById('tab-users').classList.add('is-active');
     document.getElementById('refresh-users-btn').click();
+  } else if (tabName === 'agents') {
+    document.getElementById('content-agents').classList.remove('is-hidden');
+    document.getElementById('tab-agents').classList.add('is-active');
+    document.getElementById('refresh-agents-btn').click();
   }
 }
 
@@ -219,7 +225,10 @@ def render_home_page() -> str:
                                 P("What you can publish", cls="title is-5 mb-3"),
                                 Div(
                                     Div(
-                                        P("Info page", cls="has-text-weight-semibold mb-1"),
+                                        P(
+                                            "Info page",
+                                            cls="has-text-weight-semibold mb-1",
+                                        ),
                                         P(
                                             "One-page reports, status pages, and compact dashboards.",
                                             cls="is-size-7",
@@ -308,8 +317,14 @@ def render_home_page() -> str:
                                             "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer <token>",
                                             cls="skill-line mb-2",
                                         ),
-                                        P("compress default: true", cls="is-size-7 mb-1"),
-                                        P("raw HTML limit: 100KB", cls="is-size-7 mb-3"),
+                                        P(
+                                            "compress default: true",
+                                            cls="is-size-7 mb-1",
+                                        ),
+                                        P(
+                                            "raw HTML limit: 100KB",
+                                            cls="is-size-7 mb-3",
+                                        ),
                                         P(
                                             "3. Optional persistent pages",
                                             cls="has-text-weight-semibold mb-1",
@@ -481,6 +496,106 @@ def render_users_fragment(
     return to_xml(Div(*cards))
 
 
+def render_agents_fragment(
+    agents: list[dict] | None = None,
+    *,
+    info: str | None = None,
+    error: str | None = None,
+) -> str:
+    if error:
+        return to_xml(P(error, cls="has-text-danger"))
+    if info:
+        return to_xml(P(info, cls="has-text-grey-light is-italic"))
+    if not agents:
+        return to_xml(P("Список агентов пуст", cls="has-text-grey-light is-italic"))
+
+    cards = [P("Список агентов", cls="has-text-weight-semibold mb-3")]
+    for agent in agents:
+        agent_id = agent["id"]
+        is_active = int(agent.get("is_active", 1)) == 1
+        toggle_to = 0 if is_active else 1
+        toggle_label = "Ban" if is_active else "Unban"
+        toggle_class = "is-danger" if is_active else "is-success"
+        cards.append(
+            Div(
+                Div(
+                    Span(f"ID {agent_id}", cls="tag is-light"),
+                    Span(agent["agent_id"], cls="ml-2 is-family-monospace"),
+                    Span(
+                        "active" if is_active else "banned",
+                        cls=f"tag ml-2 {'is-success' if is_active else 'is-danger'} is-light",
+                    ),
+                    cls="mb-2",
+                ),
+                P(agent.get("name") or "", cls="is-size-7 has-text-grey mb-2"),
+                Div(
+                    Span(
+                        f"Gen URL {agent.get('stateless_generated_count', 0)}",
+                        cls="tag is-link is-light",
+                    ),
+                    Span(
+                        f"View URL {agent.get('stateless_view_count', 0)}",
+                        cls="tag is-warning is-light ml-1",
+                    ),
+                    Span(
+                        f"Persist {agent.get('persistent_created_count', 0)}",
+                        cls="tag is-success is-light ml-1",
+                    ),
+                    Span(
+                        f"Apps {agent.get('apps_count', 0)}",
+                        cls="tag is-info is-light ml-1",
+                    ),
+                    Span(
+                        f"Tokens {agent.get('tokens_count', 0)}",
+                        cls="tag is-info is-light ml-1",
+                    ),
+                    Span(
+                        f"Seen {agent.get('last_seen_at') or '-'}",
+                        cls="tag is-light ml-1",
+                    ),
+                    cls="mb-2",
+                ),
+                Div(
+                    Input(
+                        type="hidden",
+                        id=f"agent-ref-{agent_id}",
+                        name="agent_ref_id",
+                        value=str(agent_id),
+                    ),
+                    Input(
+                        type="hidden",
+                        id=f"agent-active-{agent_id}",
+                        name="is_active",
+                        value=str(toggle_to),
+                    ),
+                    Button(
+                        toggle_label,
+                        cls=f"button is-small {toggle_class} is-light",
+                        hx_post="/admin/fragments/agents/toggle",
+                        hx_include=f"#key,#agent-ref-{agent_id},#agent-active-{agent_id}",
+                        hx_target="#agents-list",
+                        hx_swap="innerHTML",
+                    ),
+                    Button(
+                        "Страницы",
+                        cls="button is-small is-link is-light ml-2",
+                        hx_get=f"/admin/fragments/agents/apps?agent_ref_id={agent_id}",
+                        hx_include="#key",
+                        hx_target=f"#agent-pages-{agent_id}",
+                        hx_swap="innerHTML",
+                    ),
+                    cls="mb-2",
+                ),
+                Div(
+                    id=f"agent-pages-{agent_id}",
+                    cls="is-size-7 has-text-grey",
+                ),
+                cls="box p-3 mb-3",
+            )
+        )
+    return to_xml(Div(*cards))
+
+
 def render_admin_page() -> str:
     return _document(
         "Link Generator Pro",
@@ -615,6 +730,13 @@ def render_admin_page() -> str:
                                             ),
                                             id="tab-users",
                                         ),
+                                        Li(
+                                            A(
+                                                "Агенты",
+                                                onclick="switchTab('agents')",
+                                            ),
+                                            id="tab-agents",
+                                        ),
                                     ),
                                     cls="tabs is-boxed is-fullwidth",
                                 ),
@@ -738,6 +860,25 @@ def render_admin_page() -> str:
                                     cls="has-text-grey-light is-italic",
                                 ),
                                 id="content-users",
+                                cls="is-hidden",
+                            ),
+                            Div(
+                                H1("Агенты", cls="title is-6 mt-4"),
+                                Button(
+                                    "Обновить агентов",
+                                    id="refresh-agents-btn",
+                                    cls="button is-light is-fullwidth mt-2",
+                                    hx_get="/admin/fragments/agents",
+                                    hx_include="#key",
+                                    hx_target="#agents-list",
+                                    hx_swap="innerHTML",
+                                ),
+                                Div(
+                                    "Введите admin ключ для списка агентов",
+                                    id="agents-list",
+                                    cls="has-text-grey-light is-italic mt-3",
+                                ),
+                                id="content-agents",
                                 cls="is-hidden",
                             ),
                             id="advanced-panel",

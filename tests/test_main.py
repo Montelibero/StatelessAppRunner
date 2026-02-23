@@ -1,5 +1,6 @@
 from fastapi.testclient import TestClient
 from main import app, DEFAULT_SECRET
+from interface import routes as routes_module
 
 client = TestClient(app)
 
@@ -8,6 +9,7 @@ def test_admin_page():
     response = client.get("/admin")
     assert response.status_code == 200
     assert "Генератор ссылок" in response.text
+    assert "tab-agents" in response.text
 
 
 def test_generation_and_execution_flow():
@@ -67,10 +69,22 @@ def test_admin_users_fragment_requires_admin_key():
     assert "Введите admin ключ" in response.text
 
 
+def test_admin_agents_fragment_requires_admin_key():
+    response = client.get("/admin/fragments/agents")
+    assert response.status_code == 200
+    assert "Введите admin ключ" in response.text
+
+
 def test_admin_users_fragment_with_admin_key():
     response = client.get(f"/admin/fragments/users?key={DEFAULT_SECRET}")
     assert response.status_code == 200
     assert "Список пользователей" in response.text
+
+
+def test_admin_agents_fragment_with_admin_key():
+    response = client.get(f"/admin/fragments/agents?key={DEFAULT_SECRET}")
+    assert response.status_code == 200
+    assert "Список агентов" in response.text or "пуст" in response.text
 
 
 def test_admin_apps_fragment_with_invalid_key():
@@ -111,6 +125,142 @@ def test_admin_users_fragment_with_non_admin_key():
     response = client.get("/admin/fragments/users?key=mini-non-admin")
     assert response.status_code == 200
     assert "Только admin может видеть пользователей" in response.text
+
+
+def test_admin_agents_fragment_with_non_admin_key():
+    created = client.post(
+        "/api/users",
+        json={"admin_key": DEFAULT_SECRET, "key": "mini-non-admin-2", "comment": "u"},
+    )
+    assert created.status_code == 200
+
+    response = client.get("/admin/fragments/agents?key=mini-non-admin-2")
+    assert response.status_code == 200
+    assert "Только admin может видеть агентов" in response.text
+
+
+def test_admin_agents_fragment_renders_registered_agent(monkeypatch):
+    def fake_validate(secret: str) -> tuple[bool, str]:
+        return True, "MTLAAAAAZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+
+    monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
+    reg = client.post(
+        "/api/agent/register",
+        json={"agent_secret": "seed-admin-agent", "agent_name": "admin-agent"},
+    )
+    assert reg.status_code == 200
+
+    response = client.get(f"/admin/fragments/agents?key={DEFAULT_SECRET}")
+    assert response.status_code == 200
+    assert "admin-agent" in response.text
+
+
+def _register_agent_for_admin_tests(monkeypatch, *, secret: str, name: str):
+    def fake_validate(_secret: str) -> tuple[bool, str]:
+        return True, "MTLAAAAAZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
+
+    monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
+    reg = client.post(
+        "/api/agent/register",
+        json={"agent_secret": secret, "agent_name": name},
+    )
+    assert reg.status_code == 200
+    token = reg.json()["bearer_token"]
+    me = client.get("/api/agent/me", headers={"Authorization": f"Bearer {token}"})
+    assert me.status_code == 200
+    return token, me.json()["id"], me.json()["agent_id"]
+
+
+def test_admin_agents_pages_fragment_lists_agent_pages(monkeypatch):
+    token, agent_ref_id, _ = _register_agent_for_admin_tests(
+        monkeypatch, secret="seed-pages", name="pages-agent"
+    )
+    created = client.post(
+        "/api/agent/apps",
+        json={"slug": "agent-page-1", "html": "<h1>agent page</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert created.status_code == 200
+
+    response = client.get(
+        f"/admin/fragments/agents/apps?key={DEFAULT_SECRET}&agent_ref_id={agent_ref_id}"
+    )
+    assert response.status_code == 200
+    assert "agent-page-1" in response.text
+
+
+def test_admin_agents_fragment_shows_agent_stats(monkeypatch):
+    token, _, _ = _register_agent_for_admin_tests(
+        monkeypatch, secret="seed-stats", name="stats-agent"
+    )
+    generated = client.post(
+        "/api/agent/generate",
+        json={"html": "<h1>stateless</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert generated.status_code == 200
+    url = generated.json()["url"]
+    query = url.split("?", 1)[1]
+    opened = client.get(f"/?{query}")
+    assert opened.status_code == 200
+
+    saved = client.post(
+        "/api/agent/apps",
+        json={"slug": "stats-persist", "html": "<h1>persist</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert saved.status_code == 200
+
+    response = client.get(f"/admin/fragments/agents?key={DEFAULT_SECRET}")
+    assert response.status_code == 200
+    assert "stats-agent" in response.text
+    assert "Gen URL 1" in response.text
+    assert "View URL 1" in response.text
+    assert "Persist 1" in response.text
+
+
+def test_admin_ban_agent_kills_persistent_and_stateless_links(monkeypatch):
+    token, agent_ref_id, agent_id = _register_agent_for_admin_tests(
+        monkeypatch, secret="seed-ban", name="ban-agent"
+    )
+    persisted = client.post(
+        "/api/agent/apps",
+        json={"slug": "ban-page", "html": "<h1>persist</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert persisted.status_code == 200
+
+    generated = client.post(
+        "/api/agent/generate",
+        json={"html": "<h1>stateless</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert generated.status_code == 200
+    stateless_query = generated.json()["url"].split("?", 1)[1]
+
+    before_p = client.get(f"/a/{agent_id}/ban-page")
+    assert before_p.status_code == 200
+    before_s = client.get(f"/?{stateless_query}")
+    assert before_s.status_code == 200
+
+    banned = client.post(
+        "/admin/fragments/agents/toggle",
+        data={
+            "key": DEFAULT_SECRET,
+            "agent_ref_id": str(agent_ref_id),
+            "is_active": "0",
+        },
+    )
+    assert banned.status_code == 200
+
+    denied_token = client.get(
+        "/api/agent/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert denied_token.status_code == 403
+    after_p = client.get(f"/a/{agent_id}/ban-page")
+    assert after_p.status_code == 404
+    after_s = client.get(f"/?{stateless_query}")
+    assert after_s.status_code == 403
 
 
 def test_admin_users_create_fragment_validation_and_duplicate():

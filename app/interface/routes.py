@@ -28,15 +28,21 @@ from db import (
     get_agent_app,
     get_agent_app_by_agent_id,
     get_agent_by_token,
+    get_agent_persist_usage,
     get_app,
     get_users_stats,
     list_agent_apps,
     issue_agent_token,
+    list_agents_with_stats,
     list_apps,
     list_users,
+    count_agent_actions_since,
+    log_agent_action,
     log_action,
+    get_agent_by_id,
     save_app,
     save_agent_app,
+    set_agent_active,
     touch_agent_app_access,
 )
 from interface.schemas import (
@@ -49,6 +55,7 @@ from interface.schemas import (
     SaveAppRequest,
 )
 from ui.pages import (
+    render_agents_fragment,
     render_admin_page,
     render_apps_fragment,
     render_home_page,
@@ -79,6 +86,11 @@ def register_routes(
     default_secret: str,
     default_domain: str,
     agent_app_ttl_days: int = 7,
+    agent_max_persist_apps: int = 80,
+    agent_max_persist_bytes: int = 5_000_000,
+    agent_create_rate_per_min: int = 5,
+    agent_create_rate_per_hour: int = 20,
+    agent_create_rate_per_day: int = 40,
 ) -> None:
     app_dir = Path(__file__).resolve().parents[1]
     repo_dir = app_dir.parent
@@ -129,7 +141,10 @@ def register_routes(
 
     @app.get("/", response_class=HTMLResponse)
     async def run_app(
-        request: Request, d: Optional[str] = None, s: Optional[str] = None
+        request: Request,
+        d: Optional[str] = None,
+        s: Optional[str] = None,
+        a: Optional[str] = None,
     ):
         if not d or not s:
             return HTMLResponse(content=render_home_page())
@@ -142,23 +157,39 @@ def register_routes(
         if default_secret not in key_map:
             key_map[default_secret] = 1
 
-        for key, uid in key_map.items():
-            expected_sign = sign_data(d, key)
-            if hmac.compare_digest(expected_sign, s):
-                matched_key = key
-                matched_user_id = uid
-                break
+        if a:
+            for key, uid in key_map.items():
+                expected_sign = sign_data(f"{d}:{a}", key)
+                if hmac.compare_digest(expected_sign, s):
+                    matched_key = key
+                    matched_user_id = uid
+                    break
+        else:
+            for key, uid in key_map.items():
+                expected_sign = sign_data(d, key)
+                if hmac.compare_digest(expected_sign, s):
+                    matched_key = key
+                    matched_user_id = uid
+                    break
 
         if not matched_key:
             raise HTTPException(
                 status_code=403, detail="Integrity Check Failed (Invalid Signature)"
             )
 
+        linked_agent = None
+        if a:
+            linked_agent = get_agent_by_agent_id(a)
+            if not linked_agent or linked_agent.get("is_active") != 1:
+                raise HTTPException(status_code=403, detail="Agent link is inactive")
+
         key_prefix = matched_key[:5] if len(matched_key) >= 5 else matched_key
         logging.info(f"Access granted using key starting with: {key_prefix}")
 
         if matched_user_id:
             log_action(matched_user_id, "view_stateless")
+        if linked_agent:
+            log_agent_action(linked_agent["id"], "view_stateless")
 
         try:
             html_content = decompress_payload(d)
@@ -237,7 +268,6 @@ def register_routes(
     @app.post("/api/agent/generate")
     async def agent_generate(req: AgentGenerateRequest, request: Request):
         agent = get_agent_from_bearer(request)
-        _ = agent
 
         raw_bytes = len(req.html.encode("utf-8"))
         if raw_bytes > 102400:
@@ -248,11 +278,13 @@ def register_routes(
             html_to_process = minify_html(html_to_process)
 
         payload = compress_payload(html_to_process)
-        signature = sign_data(payload, default_secret)
+        signature = sign_data(f"{payload}:{agent['agent_id']}", default_secret)
 
         domain = req.domain if req.domain else default_domain
         domain = domain.rstrip("/")
-        full_url = f"{domain}/?d={payload}&s={signature}"
+        full_url = f"{domain}/?d={payload}&s={signature}&a={agent['agent_id']}"
+
+        log_agent_action(agent["id"], "generate_stateless")
 
         return {"url": full_url, "url_bytes": len(full_url)}
 
@@ -264,6 +296,9 @@ def register_routes(
             raise HTTPException(status_code=400, detail="Raw HTML exceeds 100KB")
 
         slug = (req.slug or "").strip()
+        existed_before = False
+        if slug:
+            existed_before = get_agent_app(agent["id"], slug) is not None
         if not slug:
             for _ in range(20):
                 candidate = generate_agent_slug()
@@ -273,13 +308,76 @@ def register_routes(
             if not slug:
                 raise HTTPException(status_code=500, detail="Failed to generate slug")
 
+        if not existed_before:
+            usage = get_agent_persist_usage(agent["id"])
+            if usage["apps_count"] >= agent_max_persist_apps:
+                raise HTTPException(
+                    status_code=409, detail="Agent app count limit exceeded"
+                )
+            now = dt.datetime.now(dt.UTC)
+            since_min = (now - dt.timedelta(minutes=1)).isoformat()
+            since_hour = (now - dt.timedelta(hours=1)).isoformat()
+            since_day = (now - dt.timedelta(days=1)).isoformat()
+
+            per_min = count_agent_actions_since(
+                agent["id"], "create_persistent", since_min
+            )
+            if per_min >= agent_create_rate_per_min:
+                raise HTTPException(
+                    status_code=429, detail="Create rate per minute exceeded"
+                )
+
+            per_hour = count_agent_actions_since(
+                agent["id"], "create_persistent", since_hour
+            )
+            if per_hour >= agent_create_rate_per_hour:
+                raise HTTPException(
+                    status_code=429, detail="Create rate per hour exceeded"
+                )
+
+            per_day = count_agent_actions_since(
+                agent["id"], "create_persistent", since_day
+            )
+            if per_day >= agent_create_rate_per_day:
+                raise HTTPException(
+                    status_code=429, detail="Create rate per day exceeded"
+                )
+        else:
+            now = dt.datetime.now(dt.UTC)
+            since_min = (now - dt.timedelta(minutes=1)).isoformat()
+            per_min_updates = count_agent_actions_since(
+                agent["id"], "update_persistent", since_min
+            )
+            if per_min_updates >= agent_create_rate_per_min:
+                raise HTTPException(
+                    status_code=429, detail="Edit rate per minute exceeded"
+                )
+
         compressed = gzip.compress(req.html.encode("utf-8"))
+        usage_after = get_agent_persist_usage(agent["id"])
+        existing = get_agent_app(agent["id"], slug)
+        old_bytes = 0
+        if existing and existing.get("html_content") is not None:
+            payload_old = existing["html_content"]
+            if isinstance(payload_old, bytes):
+                old_bytes = len(payload_old)
+            else:
+                old_bytes = len(str(payload_old).encode("utf-8"))
+
+        projected_total = usage_after["bytes_total"] - old_bytes + len(compressed)
+        if projected_total > agent_max_persist_bytes:
+            raise HTTPException(status_code=409, detail="Agent storage limit exceeded")
+
         save_agent_app(
             agent_ref_id=agent["id"],
             slug=slug,
             html_content=compressed,
             content_encoding="gzip",
         )
+        if not existed_before:
+            log_agent_action(agent["id"], "create_persistent", slug=slug)
+        else:
+            log_agent_action(agent["id"], "update_persistent", slug=slug)
         domain = default_domain.rstrip("/")
         return {"slug": slug, "url": f"{domain}/a/{agent['agent_id']}/{slug}"}
 
@@ -298,6 +396,9 @@ def register_routes(
     async def run_agent_persistent_app(agent_id: str, slug: str):
         app_data = get_agent_app_by_agent_id(agent_id, slug)
         if not app_data:
+            raise HTTPException(status_code=404, detail="App not found")
+        owner = get_agent_by_id(app_data["agent_ref_id"])
+        if not owner or owner.get("is_active") != 1:
             raise HTTPException(status_code=404, detail="App not found")
         if is_agent_app_expired(app_data.get("last_accessed_at")):
             raise HTTPException(status_code=404, detail="App expired")
@@ -391,6 +492,85 @@ def register_routes(
         return HTMLResponse(
             content=render_users_fragment(with_user_stats(list_users()))
         )
+
+    @app.get("/admin/fragments/agents", response_class=HTMLResponse)
+    async def admin_agents_fragment(key: str = ""):
+        if not key.strip():
+            return HTMLResponse(
+                content=render_agents_fragment(
+                    info="Введите admin ключ для списка агентов"
+                )
+            )
+
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный ключ"))
+        if user["id"] != 1:
+            return HTMLResponse(
+                content=render_agents_fragment(
+                    error="Только admin может видеть агентов"
+                )
+            )
+
+        return HTMLResponse(content=render_agents_fragment(list_agents_with_stats()))
+
+    @app.get("/admin/fragments/agents/apps", response_class=HTMLResponse)
+    async def admin_agents_apps_fragment(key: str = "", agent_ref_id: int = 0):
+        if not key.strip():
+            return HTMLResponse(
+                content=render_agents_fragment(error="Нужен admin ключ")
+            )
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный ключ"))
+        if user["id"] != 1:
+            return HTMLResponse(
+                content=render_agents_fragment(
+                    error="Только admin может видеть агентов"
+                )
+            )
+        if agent_ref_id <= 0:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный агент"))
+        apps = list_agent_apps(agent_ref_id)
+        owner = get_agent_by_id(agent_ref_id)
+        if not owner:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный агент"))
+        if not apps:
+            return HTMLResponse(content="Список пуст")
+        lines = []
+        for app_item in apps:
+            slug = app_item["slug"]
+            lines.append(
+                f'<div class="mb-2"><a href="/a/{owner["agent_id"]}/{slug}" target="_blank">{slug}</a> <span class="is-size-7 has-text-grey">{app_item.get("html_bytes", 0)} B</span></div>'
+            )
+        return HTMLResponse(content="".join(lines))
+
+    @app.post("/admin/fragments/agents/toggle", response_class=HTMLResponse)
+    async def admin_agents_toggle_fragment(
+        key: str = Form(""),
+        agent_ref_id: int = Form(0),
+        is_active: int = Form(1),
+    ):
+        if not key.strip():
+            return HTMLResponse(
+                content=render_agents_fragment(error="Нужен admin ключ")
+            )
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный ключ"))
+        if user["id"] != 1:
+            return HTMLResponse(
+                content=render_agents_fragment(
+                    error="Только admin может видеть агентов"
+                )
+            )
+        if agent_ref_id <= 0:
+            return HTMLResponse(content=render_agents_fragment(error="Неверный агент"))
+        set_agent_active(agent_ref_id, is_active == 1)
+        return HTMLResponse(content=render_agents_fragment(list_agents_with_stats()))
 
     @app.post("/admin/fragments/users/create", response_class=HTMLResponse)
     async def admin_users_create_fragment(

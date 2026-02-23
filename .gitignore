@@ -208,3 +208,5 @@ __marimo__/
 
 # App Data
 app/data/*.db
+app/data/*.db-shm
+app/data/*.db-wal

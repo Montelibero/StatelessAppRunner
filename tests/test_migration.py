@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime
+from datetime import UTC, datetime
 
 import db
 
@@ -34,7 +34,7 @@ def test_init_db_recovers_when_legacy_admin_key_taken_by_another_user():
         )
         """
     )
-    now = datetime.utcnow()
+    now = datetime.now(UTC).isoformat()
     c.execute(
         "INSERT INTO users (id, key, comment, created_at) VALUES (2, ?, ?, ?)",
         ("legacy-admin", "existing user", now),

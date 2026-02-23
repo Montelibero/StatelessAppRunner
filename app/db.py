@@ -10,6 +10,10 @@ DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "apps
 _local = threading.local()
 
 
+def _utc_now_iso() -> str:
+    return datetime.datetime.now(datetime.UTC).isoformat()
+
+
 def get_connection():
     conn = getattr(_local, "conn", None)
     conn_path = getattr(_local, "conn_path", None)
@@ -155,7 +159,7 @@ def _ensure_admin_user(cursor, comment: str):
     if cursor.fetchone():
         return
 
-    now = datetime.datetime.utcnow()
+    now = _utc_now_iso()
     key = "legacy-admin"
     suffix = 0
     while True:
@@ -177,7 +181,7 @@ def sync_admin_key(env_key: str):
         return
 
     conn = get_connection()
-    now = datetime.datetime.utcnow()
+    now = _utc_now_iso()
 
     with conn:
         c = conn.cursor()
@@ -203,7 +207,7 @@ def sync_admin_key(env_key: str):
 
 def save_app(slug: str, html_content: str, user_id: int = 1):
     conn = get_connection()
-    now = datetime.datetime.utcnow()
+    now = _utc_now_iso()
 
     with conn:
         c = conn.cursor()
@@ -277,7 +281,7 @@ def get_user_by_key(key: str) -> Optional[dict]:
 
 def create_user(key: str, comment: Optional[str] = None) -> int:
     conn = get_connection()
-    now = datetime.datetime.utcnow()
+    now = _utc_now_iso()
     try:
         with conn:
             c = conn.cursor()
@@ -306,7 +310,7 @@ def list_users() -> List[dict]:
 
 def log_action(user_id: int, action: str, slug: Optional[str] = None):
     conn = get_connection()
-    now = datetime.datetime.utcnow()
+    now = _utc_now_iso()
     with conn:
         c = conn.cursor()
         c.execute(

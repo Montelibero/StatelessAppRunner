@@ -15,10 +15,10 @@ typecheck:
   uv run --with pyright --with pytest --with python-fasthtml --with fastapi --with python-multipart pyright
 
 test-fast:
-  uv run --with pytest --with python-fasthtml pytest tests tests_db -q
+  uv run --with pytest --with python-fasthtml --with fastapi --with python-multipart pytest tests tests_db -q
 
 test:
-  uv run --with pytest --with python-fasthtml --with pytest-cov pytest -q --cov=app --cov-report=term --cov-fail-under=85
+  uv run --with pytest --with python-fasthtml --with fastapi --with python-multipart --with pytest-cov pytest -q --cov=app --cov-report=term --cov-fail-under=85
 
 docs-check:
   test -f docs/architecture.md

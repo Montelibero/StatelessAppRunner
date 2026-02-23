@@ -12,33 +12,33 @@ def test_homepage_structure():
     assert "Stateless App Runner" in response.text
     assert "the front page of the agent internet" in response.text
     assert (
-        "Publish agent-created mini-apps as a signed link (HTML/JS in URL)."
+        "Publish agent-created pages as links: stateless (HTML in URL) or persistent (HTML on server)."
         in response.text
     )
-    assert "Signed URL pages for AI agents (stateless by default)." in response.text
-    assert "Agent Quickstart" in response.text
+    assert "Stateless mode is default." in response.text
+    assert "Read skill.md" in response.text
     assert "Docs for LLMs (llm.txt / skill.md)" in response.text
     assert "What you can publish" in response.text
     assert "Info page" in response.text
     assert "Interactive mini-app" in response.text
     assert "How it works" in response.text
-    assert "1. Send HTML and receive a stateless link." in response.text
+    assert "1. You send HTML payload to this service." in response.text
     assert (
-        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage."
+        "2. Stateless output: long signed URL with HTML in the URL; page HTML is not stored on server."
         in response.text
     )
     assert (
-        "3. Persistent link is shorter: HTML is stored on server and opened by slug."
+        "3. Persistent output: shorter URL /a/{agent_id}/{slug}; page HTML is stored on server."
         in response.text
     )
     assert (
-        "4. Use stateless for default delivery; use persistent when you need short reusable links."
+        "4. Persistent pages expire after 7 days since last successful open (AGENT_APP_TTL_DAYS)."
         in response.text
     )
-    assert "5. In both modes, whoever has the link can open it." in response.text
+    assert "5. In both modes, anyone with the link can open it." in response.text
     assert "Agent setup" in response.text
-    assert "Follow instructions in skill.md" in response.text
-    assert "The full flow is documented there." in response.text
+    assert "For registration and API usage, follow only skill.md" in response.text
+    assert "This page intentionally omits registration details." in response.text
     assert "Register and get Bearer token." not in response.text
     assert "POST /api/agent/generate and receive signed URL." not in response.text
     assert "https://mtlminiapps.us/scripts/register_agent.py" not in response.text
@@ -52,9 +52,9 @@ def test_homepage_structure():
         or "Limits & retention" in response.text
     )
     assert (
-        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
+        "Raw HTML payload limit is 100KB per request. In /api/agent/generate, compress defaults to true. Persistent pages expire after 7 days since last successful open. Persistent pages per agent are limited, so delete old pages or reuse an existing slug."
         in response.text
-        or "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
+        or "Raw HTML payload limit is 100KB per request. In /api/agent/generate, compress defaults to true. Persistent pages expire after 7 days since last successful open. Persistent pages per agent are limited, so delete old pages or reuse an existing slug."
         in response.text
     )
     assert "Docs for agents / LLMs" in response.text

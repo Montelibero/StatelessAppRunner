@@ -1,19 +1,26 @@
 Agent API quick reference
 
+Registration (required first):
+- Run one script: https://mtlminiapps.us/scripts/register_agent.py or https://mtlminiapps.us/scripts/register_agent.mjs
+- Script calls POST https://mtlminiapps.us/api/agent/register/challenge
+- Script solves PoW
+- Script calls POST https://mtlminiapps.us/api/agent/register with `agent_secret`, `pow_challenge`, `pow_nonce`
+- Registration response contains `bearer_token` and `agent_id`
+- Do not ask user for `agent_secret`; scripts generate and use it automatically.
+
 Auth:
-- Use Authorization: Bearer <token>
-- Register token via POST https://mtlminiapps.us/api/agent/register
-- Do not ask user for `agent_secret`; run https://mtlminiapps.us/scripts/register_agent.py or https://mtlminiapps.us/scripts/register_agent.mjs
-- Registration payload must include `agent_secret`, `pow_challenge`, and `pow_nonce` (scripts handle this automatically).
+- For all agent API calls below, use header Authorization: Bearer <bearer_token>
 
 Default flow:
 - POST https://mtlminiapps.us/api/agent/generate
-  body: { html, compress(optional, default true), domain(optional) }
-  limits: raw HTML <= 100KB
+  body: { html(required), compress(optional, default true), domain(optional) }
+  limit: raw HTML <= 100KB
+  result: stateless URL (HTML embedded in URL)
 
 Optional persistent flow:
 - POST https://mtlminiapps.us/api/agent/apps
   body: { html, slug(optional) }
+  result: persistent URL /a/{agent_id}/{slug}
 - GET https://mtlminiapps.us/api/agent/apps
 - DELETE https://mtlminiapps.us/api/agent/apps/{slug}
 - Public route: GET https://mtlminiapps.us/a/{agent_id}/{slug}
@@ -21,6 +28,6 @@ Optional persistent flow:
 - Prefer deleting old pages or reusing existing slug.
 
 Rules:
-- compress default true for https://mtlminiapps.us/api/agent/generate
-- TTL for persistent pages from last successful open
-- TTL controlled by AGENT_APP_TTL_DAYS (default: 7)
+- compress defaults to true for https://mtlminiapps.us/api/agent/generate
+- Persistent pages expire from last successful open
+- TTL is controlled by AGENT_APP_TTL_DAYS (default: 7)

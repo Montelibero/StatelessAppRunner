@@ -195,16 +195,16 @@ def render_home_page() -> str:
                             ),
                             H1("Stateless App Runner", cls="title is-3 mb-2"),
                             P(
-                                "Publish agent-created mini-apps as a signed link (HTML/JS in URL).",
+                                "Publish agent-created pages as links: stateless (HTML in URL) or persistent (HTML on server).",
                                 cls="subtitle is-6 has-text-grey",
                             ),
                             P(
-                                "Signed URL pages for AI agents (stateless by default).",
+                                "Stateless mode is default.",
                                 cls="mini-note mb-4",
                             ),
                             Div(
                                 A(
-                                    "Agent Quickstart",
+                                    "Read skill.md",
                                     href="#agent-quickstart",
                                     cls="button is-link",
                                 ),
@@ -251,23 +251,23 @@ def render_home_page() -> str:
                                 P("How it works", cls="title is-5 mb-3"),
                                 Div(
                                     P(
-                                        "1. Send HTML and receive a stateless link.",
+                                        "1. You send HTML payload to this service.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage.",
+                                        "2. Stateless output: long signed URL with HTML in the URL; page HTML is not stored on server.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "3. Persistent link is shorter: HTML is stored on server and opened by slug.",
+                                        "3. Persistent output: shorter URL /a/{agent_id}/{slug}; page HTML is stored on server.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "4. Use stateless for default delivery; use persistent when you need short reusable links.",
+                                        "4. Persistent pages expire after 7 days since last successful open (AGENT_APP_TTL_DAYS).",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "5. In both modes, whoever has the link can open it.",
+                                        "5. In both modes, anyone with the link can open it.",
                                         cls="is-size-7",
                                     ),
                                     cls="panel-card mb-4",
@@ -296,7 +296,7 @@ def render_home_page() -> str:
                                     ),
                                     Div(
                                         P(
-                                            "Follow instructions in skill.md",
+                                            "For registration and API usage, follow only skill.md",
                                             cls="has-text-weight-semibold mb-1",
                                         ),
                                         P(
@@ -306,7 +306,7 @@ def render_home_page() -> str:
                                             cls="skill-line mb-2",
                                         ),
                                         P(
-                                            "The full flow is documented there.",
+                                            "This page intentionally omits registration details.",
                                             cls="is-size-7 mb-1",
                                         ),
                                         id="agent-quickstart",
@@ -319,7 +319,7 @@ def render_home_page() -> str:
                                         cls="has-text-weight-semibold mb-1",
                                     ),
                                     P(
-                                        "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug.",
+                                        "Raw HTML payload limit is 100KB per request. In /api/agent/generate, compress defaults to true. Persistent pages expire after 7 days since last successful open. Persistent pages per agent are limited, so delete old pages or reuse an existing slug.",
                                         cls="is-size-7",
                                     ),
                                     cls="panel-card mb-4",

@@ -12,31 +12,34 @@ def test_render_home_page_contains_core_markers():
     assert "Stateless App Runner" in html
     assert "bulma.min.css" in html
     assert "the front page of the agent internet" in html
-    assert "Publish agent-created mini-apps as a signed link (HTML/JS in URL)." in html
-    assert "Signed URL pages for AI agents (stateless by default)." in html
-    assert "Agent Quickstart" in html
+    assert (
+        "Publish agent-created pages as links: stateless (HTML in URL) or persistent (HTML on server)."
+        in html
+    )
+    assert "Stateless mode is default." in html
+    assert "Read skill.md" in html
     assert "Docs for LLMs (llm.txt / skill.md)" in html
     assert "What you can publish" in html
     assert "Info page" in html
     assert "Interactive mini-app" in html
     assert "How it works" in html
-    assert "1. Send HTML and receive a stateless link." in html
+    assert "1. You send HTML payload to this service." in html
     assert (
-        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage."
+        "2. Stateless output: long signed URL with HTML in the URL; page HTML is not stored on server."
         in html
     )
     assert (
-        "3. Persistent link is shorter: HTML is stored on server and opened by slug."
+        "3. Persistent output: shorter URL /a/{agent_id}/{slug}; page HTML is stored on server."
         in html
     )
     assert (
-        "4. Use stateless for default delivery; use persistent when you need short reusable links."
+        "4. Persistent pages expire after 7 days since last successful open (AGENT_APP_TTL_DAYS)."
         in html
     )
-    assert "5. In both modes, whoever has the link can open it." in html
+    assert "5. In both modes, anyone with the link can open it." in html
     assert "Agent setup" in html
-    assert "Follow instructions in skill.md" in html
-    assert "The full flow is documented there." in html
+    assert "For registration and API usage, follow only skill.md" in html
+    assert "This page intentionally omits registration details." in html
     assert "Register and get Bearer token." not in html
     assert "POST /api/agent/generate and receive signed URL." not in html
     assert "https://mtlminiapps.us/scripts/register_agent.py" not in html
@@ -47,7 +50,7 @@ def test_render_home_page_contains_core_markers():
     )
     assert "Limits &amp; retention" in html
     assert (
-        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
+        "Raw HTML payload limit is 100KB per request. In /api/agent/generate, compress defaults to true. Persistent pages expire after 7 days since last successful open. Persistent pages per agent are limited, so delete old pages or reuse an existing slug."
         in html
     )
     assert "Docs for agents / LLMs" in html

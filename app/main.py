@@ -10,7 +10,6 @@ from typing import Optional, List
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from db import (
@@ -18,6 +17,7 @@ from db import (
     sync_admin_key, get_user_by_key, create_user, list_users,
     log_action, get_users_stats
 )
+from ui.pages import render_admin_page, render_home_page
 
 app = FastAPI(title="Stateless App Runner")
 
@@ -143,7 +143,7 @@ def get_current_user_by_key(key: str):
 @app.get("/", response_class=HTMLResponse)
 async def run_app(request: Request, d: str = None, s: str = None):
     if not d or not s:
-        return templates.TemplateResponse(request=request, name="index.html")
+        return HTMLResponse(content=render_home_page())
 
     users = list_users()
     matched_key = None
@@ -213,12 +213,9 @@ async def run_persistent_app_user(user_id: int, slug: str):
 
 # --- ADMIN PANEL ---
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
-
 @app.get("/admin", response_class=HTMLResponse)
 async def admin_page(request: Request):
-    return templates.TemplateResponse(request=request, name="admin.html")
+    return HTMLResponse(content=render_admin_page())
 
 class GenerateRequest(BaseModel):
     domain: Optional[str] = None

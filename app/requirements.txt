@@ -6,3 +6,4 @@ requests
 pytest
 httpx
 pytest-cov
+python-fasthtml>=0.12.0

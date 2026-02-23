@@ -15,6 +15,11 @@ def test_skill_md_contains_required_agent_flow():
     assert "`pow_nonce`" in text
     assert "Persistent pages per agent are limited." in text
     assert "reusing existing `slug`" in text
+    assert "Content-Type: application/json" in text
+    assert "max `5` per minute" in text
+    assert "max `20` per hour" in text
+    assert "max `40` per day" in text
+    assert "max `80`" in text
 
 
 def test_llm_txt_contains_required_agent_flow():
@@ -28,6 +33,11 @@ def test_llm_txt_contains_required_agent_flow():
     assert "`pow_nonce`" in text
     assert "Persistent pages per agent are limited." in text
     assert "reusing existing slug" in text
+    assert "Content-Type: application/json" in text
+    assert "5/min" in text
+    assert "20/hour" in text
+    assert "40/day" in text
+    assert "80" in text
 
 
 def test_register_agent_python_script_contains_core_steps():

@@ -6,6 +6,7 @@ Use this service in agent-first mode with a strict, deterministic flow.
 Canonical links:
 - `https://mtlminiapps.us/skill.md`
 - `https://mtlminiapps.us/llm.txt`
+- Fallback API schema (external API only): `https://mtlminiapps.us/openapi.json`
 
 ## Registration
 Registration is required before any call to `/api/agent/generate` or `/api/agent/apps`.
@@ -39,8 +40,24 @@ Important:
 - `DELETE https://mtlminiapps.us/api/agent/apps/{slug}`
 - Public open route: `GET https://mtlminiapps.us/a/{agent_id}/{slug}`
 - Header `Authorization: Bearer <bearer_token>` is required for POST/GET/DELETE.
+- Use header `Content-Type: application/json` for POST.
+- POST body is JSON:
+  - `html` (required): string with raw page HTML (UTF-8 text), max `100KB`.
+  - `slug` (optional): string for custom short URL; if omitted or empty, server generates slug.
+- Example body:
+  - `{"html":"<h1>Hello</h1><script>console.log('ok')</script>","slug":"demo-app"}`
 - Persistent pages per agent are limited.
 - Prefer deleting old pages or reusing existing `slug` instead of creating many new pages.
+
+## Rate limits
+- New persistent pages (`POST /api/agent/apps` with new slug):
+  - max `5` per minute
+  - max `20` per hour
+  - max `40` per day
+- Persistent edits (`POST /api/agent/apps` for existing slug):
+  - max `5` updates per minute
+- Total persistent pages per agent:
+  - max `80`
 
 ## Retention
 Persistent agent pages are kept for `7 days` from last successful open.

@@ -232,7 +232,7 @@ def register_routes(
         expires_at = ts + dt.timedelta(days=agent_app_ttl_days)
         return dt.datetime.now(dt.UTC) > expires_at
 
-    @app.get("/", response_class=HTMLResponse)
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def run_app(
         request: Request,
         d: Optional[str] = None,
@@ -290,7 +290,7 @@ def register_routes(
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Decoding error: {str(e)}")
 
-    @app.get("/p/{slug}", response_class=HTMLResponse)
+    @app.get("/p/{slug}", response_class=HTMLResponse, include_in_schema=False)
     async def run_persistent_app_admin(slug: str):
         app_data = get_app(slug, user_id=1)
         if not app_data:
@@ -299,7 +299,7 @@ def register_routes(
         log_action(1, "view_persistent", slug=slug)
         return HTMLResponse(content=app_data["html_content"])
 
-    @app.get("/p{user_id}/{slug}", response_class=HTMLResponse)
+    @app.get("/p{user_id}/{slug}", response_class=HTMLResponse, include_in_schema=False)
     async def run_persistent_app_user(user_id: int, slug: str):
         app_data = get_app(slug, user_id=user_id)
         if not app_data:
@@ -308,11 +308,11 @@ def register_routes(
         log_action(user_id, "view_persistent", slug=slug)
         return HTMLResponse(content=app_data["html_content"])
 
-    @app.get("/admin", response_class=HTMLResponse)
+    @app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
     async def admin_page(request: Request):
         return HTMLResponse(content=render_admin_page())
 
-    @app.get("/skill.md", response_class=PlainTextResponse)
+    @app.get("/skill.md", response_class=PlainTextResponse, include_in_schema=False)
     async def skill_md():
         path = app_dir / "public" / "skill.md"
         if not path.exists():
@@ -321,7 +321,7 @@ def register_routes(
             path.read_text(encoding="utf-8"), media_type="text/markdown"
         )
 
-    @app.get("/llm.txt", response_class=PlainTextResponse)
+    @app.get("/llm.txt", response_class=PlainTextResponse, include_in_schema=False)
     async def llm_txt():
         path = app_dir / "public" / "llm.txt"
         if not path.exists():
@@ -515,7 +515,9 @@ def register_routes(
         delete_agent_app(agent["id"], slug)
         return {"status": "deleted", "slug": slug}
 
-    @app.get("/a/{agent_id}/{slug}", response_class=HTMLResponse)
+    @app.get(
+        "/a/{agent_id}/{slug}", response_class=HTMLResponse, include_in_schema=False
+    )
     async def run_agent_persistent_app(agent_id: str, slug: str):
         app_data = get_agent_app_by_agent_id(agent_id, slug)
         if not app_data:
@@ -538,21 +540,31 @@ def register_routes(
         touch_agent_app_access(app_data["agent_ref_id"], slug)
         return HTMLResponse(content=html)
 
-    @app.get("/scripts/register_agent.py", response_class=PlainTextResponse)
+    @app.get(
+        "/scripts/register_agent.py",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
     async def register_agent_py():
         return PlainTextResponse(
             _read_registration_script("register_agent.py"),
             media_type="text/plain",
         )
 
-    @app.get("/scripts/register_agent.mjs", response_class=PlainTextResponse)
+    @app.get(
+        "/scripts/register_agent.mjs",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
     async def register_agent_mjs():
         return PlainTextResponse(
             _read_registration_script("register_agent.mjs"),
             media_type="text/plain",
         )
 
-    @app.get("/admin/fragments/apps", response_class=HTMLResponse)
+    @app.get(
+        "/admin/fragments/apps", response_class=HTMLResponse, include_in_schema=False
+    )
     async def admin_apps_fragment(key: str = ""):
         if not key.strip():
             return HTMLResponse(
@@ -568,7 +580,11 @@ def register_routes(
 
         return HTMLResponse(content=render_apps_fragment(apps_for_user(user["id"])))
 
-    @app.post("/admin/fragments/apps/save", response_class=HTMLResponse)
+    @app.post(
+        "/admin/fragments/apps/save",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
     async def admin_apps_save_fragment(
         key: str = Form(""),
         slug: str = Form(""),
@@ -588,7 +604,9 @@ def register_routes(
         apps = apps_for_user(user["id"])
         return HTMLResponse(content=render_apps_fragment(apps))
 
-    @app.get("/admin/fragments/users", response_class=HTMLResponse)
+    @app.get(
+        "/admin/fragments/users", response_class=HTMLResponse, include_in_schema=False
+    )
     async def admin_users_fragment(key: str = ""):
         if not key.strip():
             return HTMLResponse(
@@ -612,7 +630,9 @@ def register_routes(
             content=render_users_fragment(with_user_stats(list_users()))
         )
 
-    @app.get("/admin/fragments/agents", response_class=HTMLResponse)
+    @app.get(
+        "/admin/fragments/agents", response_class=HTMLResponse, include_in_schema=False
+    )
     async def admin_agents_fragment(key: str = ""):
         if not key.strip():
             return HTMLResponse(
@@ -634,7 +654,11 @@ def register_routes(
 
         return HTMLResponse(content=render_agents_fragment(list_agents_with_stats()))
 
-    @app.get("/admin/fragments/agents/apps", response_class=HTMLResponse)
+    @app.get(
+        "/admin/fragments/agents/apps",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
     async def admin_agents_apps_fragment(key: str = "", agent_ref_id: int = 0):
         if not key.strip():
             return HTMLResponse(
@@ -666,7 +690,11 @@ def register_routes(
             )
         return HTMLResponse(content="".join(lines))
 
-    @app.post("/admin/fragments/agents/toggle", response_class=HTMLResponse)
+    @app.post(
+        "/admin/fragments/agents/toggle",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
     async def admin_agents_toggle_fragment(
         key: str = Form(""),
         agent_ref_id: int = Form(0),
@@ -691,7 +719,11 @@ def register_routes(
         set_agent_active(agent_ref_id, is_active == 1)
         return HTMLResponse(content=render_agents_fragment(list_agents_with_stats()))
 
-    @app.post("/admin/fragments/users/create", response_class=HTMLResponse)
+    @app.post(
+        "/admin/fragments/users/create",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
     async def admin_users_create_fragment(
         key: str = Form(""),
         new_user_key: str = Form(""),
@@ -804,7 +836,7 @@ def register_routes(
         delete_app(slug, user_id=uid)
         return {"status": "deleted", "slug": slug}
 
-    @app.post("/api/users")
+    @app.post("/api/users", include_in_schema=False)
     async def create_user_api(req: CreateUserRequest):
         admin = get_current_user_by_key(req.admin_key, default_secret)
         if admin["id"] != 1:
@@ -816,7 +848,7 @@ def register_routes(
         except ValueError:
             raise HTTPException(status_code=400, detail="Key already exists")
 
-    @app.get("/api/users")
+    @app.get("/api/users", include_in_schema=False)
     async def list_users_api(key: str):
         user = get_current_user_by_key(key, default_secret)
         if user["id"] != 1:

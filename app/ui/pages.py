@@ -362,6 +362,12 @@ def render_home_page() -> str:
                             ),
                             P(
                                 NotStr(
+                                    'By using this service, you agree to the <a href="/terms" target="_blank">Terms</a>.'
+                                ),
+                                cls="is-size-7 has-text-grey mt-3",
+                            ),
+                            P(
+                                NotStr(
                                     'Made by <a href="https://github.com/attid" target="_blank">Igor Tolstov</a> with support of <a href="https://mtla.me/en/" target="_blank">MTLA</a>'
                                 ),
                                 cls="is-size-7 has-text-grey mt-3",
@@ -373,6 +379,52 @@ def render_home_page() -> str:
                     cls="hero-body",
                 ),
                 cls="hero is-fullheight is-light",
+            ),
+        ],
+    )
+
+
+def render_terms_page() -> str:
+    return _document(
+        "Terms",
+        [
+            Style(HOME_STYLE),
+            Section(
+                Div(
+                    Div(
+                        H1("Terms", cls="title is-3 mb-3"),
+                        Div(
+                            P(
+                                'This service is provided on an "as is" and "as available" basis.',
+                                cls="mb-2",
+                            ),
+                            P(
+                                "We do not guarantee uptime, availability, correctness, retention, or recovery of any data.",
+                                cls="mb-2",
+                            ),
+                            P(
+                                "Data may be deleted, expired, overwritten, or lost at any time.",
+                                cls="mb-2",
+                            ),
+                            P(
+                                "Prohibited uses include illegal activity, spam, fraud, deception, and malware distribution.",
+                                cls="mb-2",
+                            ),
+                            P(
+                                "We may suspend, limit, or ban access at any time if we suspect abuse or malicious use.",
+                                cls="mb-2",
+                            ),
+                            P(
+                                "By using this service, you agree to these Terms.",
+                                cls="has-text-weight-semibold",
+                            ),
+                            cls="box",
+                        ),
+                        cls="home-box p-6 mx-auto",
+                    ),
+                    cls="container",
+                ),
+                cls="section",
             ),
         ],
     )

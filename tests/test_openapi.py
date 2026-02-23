@@ -28,6 +28,7 @@ def test_openapi_excludes_admin_and_ui_routes():
         "/llm.txt",
         "/scripts/register_agent.py",
         "/scripts/register_agent.mjs",
+        "/terms",
         "/api/users",
     }
     assert not (paths & forbidden)

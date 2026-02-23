@@ -3,6 +3,7 @@ from ui.pages import (
     render_admin_page,
     render_apps_fragment,
     render_home_page,
+    render_terms_page,
     render_users_fragment,
 )
 
@@ -65,6 +66,8 @@ def test_render_home_page_contains_core_markers():
     assert 'href="/admin"' not in html
     assert "View source on GitHub" in html
     assert "API quick reference:" in html
+    assert "By using this service, you agree to the" in html
+    assert 'href="/terms"' in html
     assert "Made by" in html
     assert "Igor Tolstov" in html
     assert 'href="https://github.com/attid"' in html
@@ -94,6 +97,15 @@ def test_render_admin_page_contains_core_markers():
     assert 'id="limit-bar"' in html
     assert "innerHTML =" not in html
     assert 'const fullKey = "mini" + uuidPart;' not in html
+
+
+def test_render_terms_page_contains_core_markers():
+    html = render_terms_page()
+    assert "Terms" in html
+    assert 'provided on an "as is" and "as available" basis' in html
+    assert "Data may be deleted" in html
+    assert "Prohibited uses include illegal activity, spam, fraud" in html
+    assert "By using this service, you agree to these Terms." in html
 
 
 def test_render_pages_do_not_read_template_files(monkeypatch):

@@ -67,6 +67,37 @@ def test_api_save_app_invalid_key():
     assert response.status_code == 403
 
 
+def test_api_generate_normalizes_http_domain_to_https():
+    response = client.post(
+        "/api/generate",
+        json={
+            "key": TEST_KEY,
+            "html": "<h1>x</h1>",
+            "domain": "http://mtlminiapps.us",
+            "compress": False,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["url"].startswith("https://mtlminiapps.us/")
+
+
+def test_api_generate_rejects_empty_html():
+    response = client.post(
+        "/api/generate",
+        json={"key": TEST_KEY, "html": "", "compress": False},
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
+def test_api_save_app_rejects_empty_html():
+    response = client.post(
+        "/api/apps", json={"key": TEST_KEY, "slug": "empty-html", "html": ""}
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
 def test_api_list_apps():
     """Test GET /api/apps"""
     # Create a couple of apps

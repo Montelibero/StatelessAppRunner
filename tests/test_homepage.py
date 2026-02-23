@@ -68,6 +68,8 @@ def test_homepage_structure():
     assert 'href="https://mtlminiapps.us/?d=' in response.text
     assert "View source on GitHub" in response.text
     assert "API quick reference:" in response.text
+    assert "By using this service, you agree to the" in response.text
+    assert 'href="/terms"' in response.text
     assert "Made by" in response.text
     assert "Igor Tolstov" in response.text
     assert 'href="https://github.com/attid"' in response.text
@@ -81,3 +83,13 @@ def test_homepage_structure():
 
     # Check for github link - Updated to match actual file content
     assert 'href="https://github.com/Montelibero/StatelessAppRunner"' in response.text
+
+
+def test_terms_page_structure():
+    response = client.get("/terms")
+    assert response.status_code == 200
+    assert "Terms" in response.text
+    assert 'provided on an "as is" and "as available" basis' in response.text
+    assert "Data may be deleted" in response.text
+    assert "Prohibited uses include illegal activity, spam, fraud" in response.text
+    assert "By using this service, you agree to these Terms." in response.text

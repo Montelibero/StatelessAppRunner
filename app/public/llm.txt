@@ -2,12 +2,16 @@ Agent API quick reference
 
 Fallback schema (external API only):
 - https://mtlminiapps.us/openapi.json
+- By using the service, you agree to Terms: https://mtlminiapps.us/terms
+- Do not use for illegal activity, spam, fraud, deception, or malware; access may be suspended or banned.
 
 Registration (required first):
 - Run one script: https://mtlminiapps.us/scripts/register_agent.py or https://mtlminiapps.us/scripts/register_agent.mjs
 - Script calls POST https://mtlminiapps.us/api/agent/register/challenge
 - Script solves PoW
 - Script calls POST https://mtlminiapps.us/api/agent/register with `agent_secret`, `pow_challenge`, `pow_nonce`
+- `pow_nonce` must be string
+- Optional register fields: `agent_name` (string), `client` (string)
 - Registration response contains `bearer_token` and `agent_id`
 - Do not ask user for `agent_secret`; scripts generate and use it automatically.
 
@@ -16,8 +20,9 @@ Auth:
 
 Default flow:
 - POST https://mtlminiapps.us/api/agent/generate
-  body: { html(required), compress(optional, default true), domain(optional) }
+  body: { html(required non-empty UTF-8 string), compress(optional, default true), domain(optional) }
   limit: raw HTML <= 100KB
+  domain: overrides returned link host; if omitted, service default domain is used
   result: stateless URL (HTML embedded in URL)
 
 Optional persistent flow:
@@ -25,7 +30,7 @@ Optional persistent flow:
   headers:
     Authorization: Bearer <bearer_token>
     Content-Type: application/json
-  body: { html(required string UTF-8 raw HTML <= 100KB), slug(optional string) }
+  body: { html(required non-empty string UTF-8 raw HTML <= 100KB), slug(optional string) }
   example: {"html":"<h1>Hello</h1>","slug":"demo-app"}
   result: persistent URL /a/{agent_id}/{slug}
 - GET https://mtlminiapps.us/api/agent/apps
@@ -36,6 +41,7 @@ Optional persistent flow:
 
 Rules:
 - compress defaults to true for https://mtlminiapps.us/api/agent/generate
+- compress defaults to false for https://mtlminiapps.us/api/generate
 - Persistent pages expire from last successful open
 - TTL is controlled by AGENT_APP_TTL_DAYS (default: 7)
 - Create limits for new persistent pages: 5/min, 20/hour, 40/day

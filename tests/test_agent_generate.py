@@ -73,3 +73,25 @@ def test_agent_generate_success_returns_url_and_size(monkeypatch):
     assert "url" in body
     assert "?d=" in body["url"] and "&s=" in body["url"]
     assert body["url_bytes"] == len(body["url"])
+
+
+def test_agent_generate_rejects_empty_html(monkeypatch):
+    token = _register_test_agent(monkeypatch)
+    response = client.post(
+        "/api/agent/generate",
+        json={"html": ""},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
+def test_agent_generate_normalizes_http_domain_to_https(monkeypatch):
+    token = _register_test_agent(monkeypatch)
+    response = client.post(
+        "/api/agent/generate",
+        json={"html": "<h1>x</h1>", "domain": "http://mtlminiapps.us"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.json()["url"].startswith("https://mtlminiapps.us/")

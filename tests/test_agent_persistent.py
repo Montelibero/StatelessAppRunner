@@ -89,6 +89,17 @@ def test_agent_apps_reject_over_100kb(monkeypatch):
     assert "100KB" in response.json()["detail"]
 
 
+def test_agent_apps_reject_empty_html(monkeypatch):
+    token, _, _ = _register_test_agent(monkeypatch)
+    response = client.post(
+        "/api/agent/apps",
+        json={"slug": "empty", "html": ""},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "empty" in response.json()["detail"].lower()
+
+
 def test_agent_apps_limit_total_count(monkeypatch):
     token, _, agent_ref_id = _register_test_agent(monkeypatch)
     conn = db.get_connection()

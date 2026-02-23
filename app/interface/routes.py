@@ -10,6 +10,7 @@ import os
 import json
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse, urlunparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
@@ -61,6 +62,7 @@ from ui.pages import (
     render_admin_page,
     render_apps_fragment,
     render_home_page,
+    render_terms_page,
     render_users_fragment,
 )
 
@@ -162,6 +164,34 @@ def verify_registration_pow(
     payload_bytes = f"{seed}:{agent_secret}:{pow_nonce}".encode("utf-8")
     digest = hashlib.sha256(payload_bytes).digest()
     return _leading_zero_bits(digest) >= bits
+
+
+def _normalize_domain(domain: str) -> str:
+    raw = domain.strip()
+    if not raw:
+        return raw
+    parsed = urlparse(raw)
+    if not parsed.scheme:
+        parsed = urlparse(f"https://{raw}")
+    host = (parsed.hostname or "").lower()
+    scheme = parsed.scheme.lower()
+    if (
+        scheme == "http"
+        and host not in {"localhost", "127.0.0.1"}
+        and not host.endswith(".local")
+    ):
+        parsed = parsed._replace(scheme="https")
+    normalized = urlunparse(
+        (
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path or "",
+            "",
+            "",
+            "",
+        )
+    )
+    return normalized.rstrip("/")
 
 
 def register_routes(
@@ -330,6 +360,10 @@ def register_routes(
             path.read_text(encoding="utf-8"), media_type="text/plain"
         )
 
+    @app.get("/terms", response_class=HTMLResponse, include_in_schema=False)
+    async def terms_page():
+        return HTMLResponse(content=render_terms_page())
+
     @app.post("/api/agent/register/challenge")
     async def agent_register_challenge():
         bits_raw = os.getenv("AGENT_REGISTER_POW_BITS", "24").strip()
@@ -391,6 +425,8 @@ def register_routes(
     @app.post("/api/agent/generate")
     async def agent_generate(req: AgentGenerateRequest, request: Request):
         agent = get_agent_from_bearer(request)
+        if not req.html.strip():
+            raise HTTPException(status_code=400, detail="HTML cannot be empty")
 
         raw_bytes = len(req.html.encode("utf-8"))
         if raw_bytes > 102400:
@@ -403,8 +439,11 @@ def register_routes(
         payload = compress_payload(html_to_process)
         signature = sign_data(f"{payload}:{agent['agent_id']}", default_secret)
 
-        domain = req.domain if req.domain else default_domain
-        domain = domain.rstrip("/")
+        domain = (
+            _normalize_domain(req.domain)
+            if req.domain
+            else _normalize_domain(default_domain)
+        )
         full_url = f"{domain}/?d={payload}&s={signature}&a={agent['agent_id']}"
 
         log_agent_action(agent["id"], "generate_stateless")
@@ -414,6 +453,8 @@ def register_routes(
     @app.post("/api/agent/apps")
     async def agent_save_app(req: AgentSaveAppRequest, request: Request):
         agent = get_agent_from_bearer(request)
+        if not req.html.strip():
+            raise HTTPException(status_code=400, detail="HTML cannot be empty")
         raw_bytes = len(req.html.encode("utf-8"))
         if raw_bytes > 102400:
             raise HTTPException(status_code=400, detail="Raw HTML exceeds 100KB")
@@ -501,7 +542,7 @@ def register_routes(
             log_agent_action(agent["id"], "create_persistent", slug=slug)
         else:
             log_agent_action(agent["id"], "update_persistent", slug=slug)
-        domain = default_domain.rstrip("/")
+        domain = _normalize_domain(default_domain)
         return {"slug": slug, "url": f"{domain}/a/{agent['agent_id']}/{slug}"}
 
     @app.get("/api/agent/apps")
@@ -759,6 +800,8 @@ def register_routes(
     @app.post("/api/generate")
     async def generate_api(req: GenerateRequest):
         user = get_current_user_by_key(req.key, default_secret)
+        if not req.html.strip():
+            raise HTTPException(status_code=400, detail="HTML cannot be empty")
 
         html_to_process = req.html
         if req.compress:
@@ -767,8 +810,11 @@ def register_routes(
         payload = compress_payload(html_to_process)
         signature = sign_data(payload, req.key)
 
-        domain = req.domain if req.domain else default_domain
-        domain = domain.rstrip("/")
+        domain = (
+            _normalize_domain(req.domain)
+            if req.domain
+            else _normalize_domain(default_domain)
+        )
 
         full_url = f"{domain}/?d={payload}&s={signature}"
 
@@ -778,6 +824,8 @@ def register_routes(
     @app.post("/api/apps")
     async def save_app_api(req: SaveAppRequest):
         user = get_current_user_by_key(req.key, default_secret)
+        if not req.html.strip():
+            raise HTTPException(status_code=400, detail="HTML cannot be empty")
 
         target_user_id = user["id"]
         if req.owner_id is not None:

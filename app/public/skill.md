@@ -7,6 +7,8 @@ Canonical links:
 - `https://mtlminiapps.us/skill.md`
 - `https://mtlminiapps.us/llm.txt`
 - Fallback API schema (external API only): `https://mtlminiapps.us/openapi.json`
+- By using the service, you agree to Terms: `https://mtlminiapps.us/terms`
+- Do not use for illegal activity, spam, fraud, deception, or malware; access may be suspended or banned.
 
 ## Registration
 Registration is required before any call to `/api/agent/generate` or `/api/agent/apps`.
@@ -19,7 +21,9 @@ Registration is required before any call to `/api/agent/generate` or `/api/agent
 4. The script calls `POST https://mtlminiapps.us/api/agent/register` with:
    - `agent_secret`
    - `pow_challenge`
-   - `pow_nonce`
+   - `pow_nonce` (string)
+   - `agent_name` (optional string)
+   - `client` (optional string, for client label)
 5. The response contains `bearer_token` and `agent_id`.
 
 Important:
@@ -31,7 +35,9 @@ Important:
 - `POST https://mtlminiapps.us/api/agent/generate`
 - Header `Authorization: Bearer <bearer_token>` is required.
 - Request body: `html` (required), `compress` (optional, default `true`), `domain` (optional).
+- `html` must be a non-empty UTF-8 string.
 - Raw HTML max size is `100KB`.
+- `domain` overrides returned link host. If omitted, service default domain is used.
 - Response returns a stateless URL with page HTML embedded in the URL.
 
 ## Optional persistent mode
@@ -42,7 +48,7 @@ Important:
 - Header `Authorization: Bearer <bearer_token>` is required for POST/GET/DELETE.
 - Use header `Content-Type: application/json` for POST.
 - POST body is JSON:
-  - `html` (required): string with raw page HTML (UTF-8 text), max `100KB`.
+  - `html` (required): non-empty string with raw page HTML (UTF-8 text), max `100KB`.
   - `slug` (optional): string for custom short URL; if omitted or empty, server generates slug.
 - Example body:
   - `{"html":"<h1>Hello</h1><script>console.log('ok')</script>","slug":"demo-app"}`
@@ -58,6 +64,10 @@ Important:
   - max `5` updates per minute
 - Total persistent pages per agent:
   - max `80`
+
+Note:
+- Public API `POST /api/generate` has `compress` default `false`.
+- Agent API `POST /api/agent/generate` has `compress` default `true`.
 
 ## Retention
 Persistent agent pages are kept for `7 days` from last successful open.

@@ -13,6 +13,11 @@ def test_skill_md_contains_required_agent_flow():
     assert "https://mtlminiapps.us/scripts/register_agent.mjs" in text
     assert "Do not ask user to provide `agent_secret`." in text
     assert "`pow_nonce`" in text
+    assert "`pow_nonce` (string)" in text
+    assert "`agent_name` (optional string)" in text
+    assert "`client` (optional string" in text
+    assert "non-empty UTF-8 string" in text
+    assert "domain` overrides returned link host" in text
     assert "Persistent pages per agent are limited." in text
     assert "reusing existing `slug`" in text
     assert "Content-Type: application/json" in text
@@ -31,6 +36,9 @@ def test_llm_txt_contains_required_agent_flow():
     assert "TTL" in text
     assert "Do not ask user for `agent_secret`" in text
     assert "`pow_nonce`" in text
+    assert "pow_nonce` must be string" in text
+    assert "Optional register fields: `agent_name`" in text
+    assert "domain: overrides returned link host" in text
     assert "Persistent pages per agent are limited." in text
     assert "reusing existing slug" in text
     assert "Content-Type: application/json" in text
@@ -38,6 +46,7 @@ def test_llm_txt_contains_required_agent_flow():
     assert "20/hour" in text
     assert "40/day" in text
     assert "80" in text
+    assert "compress defaults to false for https://mtlminiapps.us/api/generate" in text
 
 
 def test_register_agent_python_script_contains_core_steps():

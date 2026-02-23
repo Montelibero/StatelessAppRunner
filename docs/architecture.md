@@ -9,8 +9,9 @@ The application uses a hybrid setup:
 
 ## Layers
 
-- `interface`: HTTP routes and request/response contracts in `app/main.py`.
-- `application`: Endpoint orchestration in `app/main.py` helper functions.
+- `composition root`: app setup, middleware, environment wiring in `app/main.py`.
+- `interface`: HTTP routes and request/response contracts in `app/interface/routes.py`, request schemas in `app/interface/schemas.py`.
+- `application`: payload/auth logic in `app/application/payload.py` and `app/application/auth.py`.
 - `infrastructure`: Database access and schema migration in `app/db.py`.
 - `ui`: HTML rendering for system pages in `app/ui/pages.py`.
 

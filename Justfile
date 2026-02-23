@@ -29,7 +29,7 @@ docs-check:
   test -f adr/README.md
 
 arch-test:
-  uv run --with python-fasthtml python -c "import pathlib; p=pathlib.Path('app/main.py'); s=p.read_text(encoding='utf-8'); assert 'from ui.pages import' in s, 'main.py must render system UI via ui.pages'; print('arch-test: ok')"
+  uv run --with python-fasthtml python -c "import pathlib; main=pathlib.Path('app/main.py').read_text(encoding='utf-8'); routes=pathlib.Path('app/interface/routes.py').read_text(encoding='utf-8'); assert 'from interface.routes import register_routes' in main, 'main.py must register routes via interface layer'; assert 'from ui.pages import' in routes, 'UI rendering should stay in interface/routes layer'; print('arch-test: ok')"
 
 metrics:
   @echo "Python files: $$(rg --files app tests tests_db | wc -l)"

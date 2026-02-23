@@ -249,11 +249,22 @@ def list_apps(user_id: Optional[int] = None) -> List[dict]:
 
     if user_id is not None:
         c.execute(
-            "SELECT slug, updated_at, user_id FROM apps WHERE user_id = ? ORDER BY updated_at DESC",
+            """
+            SELECT slug, updated_at, user_id, LENGTH(CAST(html_content AS BLOB)) AS html_bytes
+            FROM apps
+            WHERE user_id = ?
+            ORDER BY updated_at DESC
+            """,
             (user_id,),
         )
     else:
-        c.execute("SELECT slug, updated_at, user_id FROM apps ORDER BY updated_at DESC")
+        c.execute(
+            """
+            SELECT slug, updated_at, user_id, LENGTH(CAST(html_content AS BLOB)) AS html_bytes
+            FROM apps
+            ORDER BY updated_at DESC
+            """
+        )
 
     rows = c.fetchall()
     return [dict(row) for row in rows]

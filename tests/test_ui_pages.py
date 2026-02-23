@@ -27,6 +27,9 @@ def test_render_admin_page_contains_core_markers():
     assert 'id="users-list"' in html
     assert "/admin/fragments/apps" in html
     assert "/admin/fragments/users" in html
+    assert 'id="len-info"' in html
+    assert 'id="limit-bar"' in html
+    assert "Telegram" in html
     assert "innerHTML =" not in html
     assert 'const fullKey = "mini" + uuidPart;' not in html
 
@@ -49,12 +52,16 @@ def test_render_apps_fragment_states():
     assert "Введите ключ" in render_apps_fragment(info="Введите ключ")
     assert "Список пуст" in render_apps_fragment([])
 
-    html = render_apps_fragment([{"slug": "demo", "user_id": 1}])
+    html = render_apps_fragment([{"slug": "demo", "user_id": 1, "html_bytes": 123}])
     assert "demo" in html
     assert "/p/demo" in html
+    assert "123 B" in html
 
-    html_user = render_apps_fragment([{"slug": "demo2", "user_id": 7}])
+    html_user = render_apps_fragment(
+        [{"slug": "demo2", "user_id": 7, "html_bytes": 456}]
+    )
     assert "/p7/demo2" in html_user
+    assert "456 B" in html_user
 
 
 def test_render_users_fragment_states():

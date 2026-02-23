@@ -77,6 +77,8 @@ def test_api_list_apps():
     data = response.json()
     slugs = [item["slug"] for item in data]
     assert "app1" in slugs
+    app1 = next(item for item in data if item["slug"] == "app1")
+    assert app1["html_bytes"] >= 2
 
 
 def test_api_get_app():

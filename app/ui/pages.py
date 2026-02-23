@@ -38,6 +38,8 @@ ADMIN_STYLE = """
 .result-box { border: 1px solid var(--bulma-border); word-break: break-all; max-height: 200px; overflow-y: auto; font-family: monospace; }
 .admin-tabs .tabs { margin-bottom: 0.75rem; }
 .admin-tabs .tabs li a { font-weight: 600; }
+.limit-progress-wrapper { width: 120px; height: 6px; background-color: var(--bulma-background-weak); border-radius: 99px; overflow: hidden; }
+.limit-progress-bar { height: 100%; background-color: var(--bulma-link); width: 0%; transition: width 0.3s, background-color 0.3s; }
 """
 
 
@@ -79,9 +81,33 @@ async function generate() {
   const result = document.getElementById('result');
   const text = document.getElementById('link-text');
   const anchor = document.getElementById('link-anchor');
+  const lenInfo = document.getElementById('len-info');
+  const limitBar = document.getElementById('limit-bar');
+  const limitWarn = document.getElementById('limit-warning');
+  const hardLimit = 8193;
+  const tgRecommendedLimit = 4096;
+  const urlLength = data.url.length;
+  const percentage = Math.min((urlLength / hardLimit) * 100, 100);
 
   text.textContent = data.url;
   anchor.href = data.url;
+  lenInfo.textContent = String(urlLength);
+  limitBar.style.width = `${percentage}%`;
+
+  if (percentage > 90) {
+    limitBar.style.backgroundColor = 'var(--bulma-danger)';
+  } else if (percentage > 70) {
+    limitBar.style.backgroundColor = 'var(--bulma-warning)';
+  } else {
+    limitBar.style.backgroundColor = 'var(--bulma-link)';
+  }
+
+  if (urlLength > tgRecommendedLimit) {
+    limitWarn.classList.remove('is-hidden');
+  } else {
+    limitWarn.classList.add('is-hidden');
+  }
+
   result.classList.remove('is-hidden');
 }
 
@@ -233,6 +259,10 @@ def render_apps_fragment(
                 Div(
                     Span(app_item["slug"], cls="has-text-weight-semibold"),
                     P(href, cls="is-size-7 has-text-grey"),
+                    Span(
+                        f"{app_item.get('html_bytes', 0)} B",
+                        cls="tag is-light is-size-7",
+                    ),
                     cls="is-flex-grow-1",
                 ),
                 A(
@@ -361,11 +391,32 @@ def render_admin_page() -> str:
                         ),
                         Div(
                             Div(
-                                Div(
-                                    Span(id="link-text", cls="is-size-7"),
-                                    cls="result-box p-3",
+                                P(
+                                    "Готово",
+                                    cls="has-text-weight-semibold has-text-link mb-0",
                                 ),
-                                cls="control is-expanded",
+                                Div(
+                                    Span(
+                                        Span("0", id="len-info"),
+                                        " / 8193 байт",
+                                        cls="is-size-7 mr-2",
+                                    ),
+                                    Div(
+                                        Div(id="limit-bar", cls="limit-progress-bar"),
+                                        cls="limit-progress-wrapper",
+                                    ),
+                                    cls="is-flex is-align-items-center",
+                                ),
+                                cls="is-flex is-justify-content-space-between is-align-items-center mb-3",
+                            ),
+                            Div(
+                                Span(id="link-text", cls="is-size-7"),
+                                cls="result-box p-3",
+                            ),
+                            P(
+                                "В Telegram длинные URL могут открываться нестабильно, лучше держать длину до ~4096 байт.",
+                                id="limit-warning",
+                                cls="help is-danger mt-2 is-hidden",
                             ),
                             Div(
                                 A(

@@ -10,7 +10,13 @@ def test_render_home_page_contains_core_markers():
     html = render_home_page()
     assert "Stateless App Runner" in html
     assert "bulma.min.css" in html
-    assert 'href="/admin"' in html
+    assert "Если вы агент" in html
+    assert "Если вы человек" in html
+    assert "Передайте ссылку на этот сервис вашему AI-агенту" in html
+    assert 'href="/skill.md"' in html
+    assert 'href="/scripts/register_agent.py"' in html
+    assert 'href="/scripts/register_agent.mjs"' in html
+    assert 'href="/admin"' not in html
     assert "View source on GitHub" in html
 
 

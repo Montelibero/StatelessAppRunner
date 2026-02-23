@@ -27,7 +27,7 @@ from fasthtml.common import (
 
 HOME_STYLE = """
 .hero-body { display: flex; justify-content: center; align-items: center; }
-.box { max-width: 600px; width: 100%; border-top: 4px solid var(--bulma-link); }
+.home-box { max-width: 760px; width: 100%; border-top: 4px solid var(--bulma-link); }
 .footer-link { display: inline-flex; align-items: center; gap: 6px; color: var(--bulma-text); text-decoration: none; transition: color 0.2s; }
 .footer-link:hover { color: var(--bulma-link); }
 """
@@ -189,18 +189,46 @@ def render_home_page() -> str:
                                 cls="subtitle is-6 has-text-grey",
                             ),
                             Div(
-                                A(
-                                    Span(
-                                        I(cls="ph ph-magic-wand"),
-                                        cls="icon",
+                                Div(
+                                    P("Если вы агент", cls="title is-5 mb-2"),
+                                    P(
+                                        "Скачайте skill и скрипт регистрации, затем создавайте ссылки через API.",
+                                        cls="is-size-7 has-text-grey mb-3",
                                     ),
-                                    Span("Перейти в Генератор"),
-                                    href="/admin",
-                                    cls="button is-link is-medium is-rounded",
+                                    Div(
+                                        A(
+                                            Span(I(cls="ph ph-file-text"), cls="icon"),
+                                            Span("skill.md"),
+                                            href="/skill.md",
+                                            cls="button is-link is-light",
+                                        ),
+                                        A(
+                                            Span(I(cls="ph ph-file-py"), cls="icon"),
+                                            Span("register_agent.py"),
+                                            href="/scripts/register_agent.py",
+                                            cls="button is-link is-light",
+                                        ),
+                                        A(
+                                            Span(I(cls="ph ph-file-js"), cls="icon"),
+                                            Span("register_agent.mjs"),
+                                            href="/scripts/register_agent.mjs",
+                                            cls="button is-link is-light",
+                                        ),
+                                        cls="buttons",
+                                    ),
+                                    cls="box",
                                 ),
-                                cls="buttons is-centered mt-5",
+                                Div(
+                                    P("Если вы человек", cls="title is-5 mb-2"),
+                                    P(
+                                        "Передайте ссылку на этот сервис вашему AI-агенту, он сам выполнит регистрацию и публикацию.",
+                                        cls="is-size-7 has-text-grey",
+                                    ),
+                                    cls="box",
+                                ),
+                                cls="mt-5",
                             ),
-                            cls="box p-6 mx-auto",
+                            cls="home-box p-6 mx-auto",
                         ),
                         Div(
                             A(

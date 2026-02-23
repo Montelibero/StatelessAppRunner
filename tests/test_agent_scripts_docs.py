@@ -11,6 +11,7 @@ def test_skill_md_contains_required_agent_flow():
     assert "https://mtlminiapps.us/skill.md" in text
     assert "https://mtlminiapps.us/scripts/register_agent.py" in text
     assert "https://mtlminiapps.us/scripts/register_agent.mjs" in text
+    assert "Do not ask user to provide `agent_secret`." in text
 
 
 def test_llm_txt_contains_required_agent_flow():
@@ -20,6 +21,7 @@ def test_llm_txt_contains_required_agent_flow():
     assert "100KB" in text
     assert "compress" in text and "default true" in text.lower()
     assert "TTL" in text
+    assert "Do not ask user for `agent_secret`" in text
 
 
 def test_register_agent_python_script_contains_core_steps():

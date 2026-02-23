@@ -14,6 +14,11 @@ Canonical links:
 2. Script solves challenge and calls `POST https://mtlminiapps.us/api/agent/register`.
 3. Script prints `bearer_token` and ready API commands.
 
+Important:
+- Do not ask user to provide `agent_secret`.
+- Do not invent `agent_secret` manually.
+- Always run one of the registration scripts; the script generates and uses `agent_secret` automatically.
+
 ## Default mode (recommended)
 - `POST https://mtlminiapps.us/api/agent/generate`
 - Bearer auth required.

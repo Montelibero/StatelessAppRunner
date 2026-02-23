@@ -3,6 +3,7 @@ Agent API quick reference
 Auth:
 - Use Authorization: Bearer <token>
 - Register token via POST https://mtlminiapps.us/api/agent/register
+- Do not ask user for `agent_secret`; run https://mtlminiapps.us/scripts/register_agent.py or https://mtlminiapps.us/scripts/register_agent.mjs
 
 Default flow:
 - POST https://mtlminiapps.us/api/agent/generate

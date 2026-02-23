@@ -93,7 +93,6 @@ function toggleAdvancedPanel() {
   const panel = document.getElementById('advanced-panel');
   panel.classList.toggle('is-hidden');
   if (!panel.classList.contains('is-hidden')) {
-    onKeyChange();
     switchTab(currentTab);
   }
 }
@@ -108,132 +107,17 @@ function switchTab(tabName) {
   if (tabName === 'saved') {
     document.getElementById('content-saved').classList.remove('is-hidden');
     document.getElementById('tab-saved').classList.add('is-active');
-    loadApps();
+    document.getElementById('refresh-apps-btn').click();
   } else if (tabName === 'users') {
     document.getElementById('content-users').classList.remove('is-hidden');
     document.getElementById('tab-users').classList.add('is-active');
-    loadUsers();
+    document.getElementById('refresh-users-btn').click();
   }
-}
-
-async function onKeyChange() {
-  const key = document.getElementById('key').value.trim();
-  const usersTab = document.getElementById('tab-users');
-  if (!key) {
-    usersTab.classList.add('is-hidden');
-    return;
-  }
-  try {
-    const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
-    if (response.ok) {
-      usersTab.classList.remove('is-hidden');
-    } else {
-      usersTab.classList.add('is-hidden');
-      if (currentTab === 'users') switchTab('saved');
-    }
-  } catch {
-    usersTab.classList.add('is-hidden');
-  }
-}
-
-async function loadApps() {
-  const key = document.getElementById('key').value.trim();
-  const listDiv = document.getElementById('apps-list');
-  if (!key) {
-    listDiv.innerHTML = '<p class="has-text-grey-light is-italic">Введите ключ чтобы увидеть приложения...</p>';
-    return;
-  }
-  try {
-    const response = await fetch(`/api/apps?key=${encodeURIComponent(key)}`);
-    if (!response.ok) {
-      listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки приложений</p>';
-      return;
-    }
-    const apps = await response.json();
-    if (!apps.length) {
-      listDiv.innerHTML = '<p class="has-text-grey-light is-italic">Список пуст</p>';
-      return;
-    }
-    listDiv.innerHTML = apps.map(a => {
-      const href = a.user_id === 1 ? `/p/${a.slug}` : `/p${a.user_id}/${a.slug}`;
-      return `<div class="box p-3 mb-3"><div class="is-flex is-justify-content-space-between is-align-items-center"><div><strong>${a.slug}</strong><div class="is-size-7 has-text-grey">${href}</div></div><a class="button is-small is-link is-light" href="${href}" target="_blank">Открыть</a></div></div>`;
-    }).join('');
-  } catch {
-    listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки приложений</p>';
-  }
-}
-
-async function saveApp() {
-  const key = document.getElementById('key').value.trim();
-  const slug = document.getElementById('app-slug').value.trim();
-  const html = document.getElementById('code').value;
-  if (!key || !slug) {
-    alert('Нужны ключ и имя ссылки');
-    return;
-  }
-  const response = await fetch('/api/apps', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key, slug, html })
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.detail || 'Ошибка сохранения');
-    return;
-  }
-  await loadApps();
 }
 
 function generateUUIDKey() {
   const value = `mini${crypto.randomUUID().replaceAll('-', '').slice(0, 28)}`;
   document.getElementById('new-user-key').value = value;
-}
-
-async function loadUsers() {
-  const key = document.getElementById('key').value.trim();
-  const listDiv = document.getElementById('users-list');
-  if (!key) {
-    listDiv.innerHTML = '<p class="has-text-grey-light">Введите admin ключ</p>';
-    return;
-  }
-  try {
-    const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
-    if (!response.ok) {
-      listDiv.innerHTML = '<p class="has-text-danger">Нет доступа к списку пользователей</p>';
-      return;
-    }
-    const users = await response.json();
-    const rows = users.map(u => {
-      const s = u.stats || {};
-      return `<tr><td>${u.id}</td><td><code>${u.key}</code></td><td>${u.comment || ''}</td><td>${s.generated || 0}</td><td>${s.view_stateless || 0}</td><td>${s.apps_count || 0}</td><td>${s.view_persistent || 0}</td></tr>`;
-    }).join('');
-    listDiv.innerHTML = `<div class="table-container"><table class="table is-fullwidth is-striped is-hoverable"><thead><tr><th>ID</th><th>Key</th><th>Comment</th><th>Gen</th><th>View URL</th><th>Apps</th><th>View /p</th></tr></thead><tbody>${rows}</tbody></table></div>`;
-  } catch {
-    listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки пользователей</p>';
-  }
-}
-
-async function createUser() {
-  const adminKey = document.getElementById('key').value.trim();
-  const key = document.getElementById('new-user-key').value.trim();
-  const comment = document.getElementById('new-user-comment').value.trim();
-  if (!adminKey || !key) {
-    alert('Нужны admin key и новый ключ');
-    return;
-  }
-  const response = await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ admin_key: adminKey, key, comment })
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    alert(data.detail || 'Ошибка создания пользователя');
-    return;
-  }
-  document.getElementById('new-user-key').value = '';
-  document.getElementById('new-user-comment').value = '';
-  await loadUsers();
 }
 """
 
@@ -249,6 +133,7 @@ def _document(title: str, body_children: list) -> str:
                     rel="stylesheet",
                     href="https://cdn.jsdelivr.net/npm/bulma@1.0.0/css/bulma.min.css",
                 ),
+                Script(src="https://unpkg.com/htmx.org@1.9.12"),
                 Script(src="https://unpkg.com/@phosphor-icons/web"),
             ),
             Body(*body_children),
@@ -318,6 +203,96 @@ def render_home_page() -> str:
     )
 
 
+def _app_href(app_item: dict) -> str:
+    user_id = app_item.get("user_id", 1)
+    slug = app_item["slug"]
+    if user_id == 1:
+        return f"/p/{slug}"
+    return f"/p{user_id}/{slug}"
+
+
+def render_apps_fragment(
+    apps: list[dict] | None = None, *, info: str | None = None, error: str | None = None
+) -> str:
+    if error:
+        return to_xml(P(error, cls="has-text-danger"))
+    if info:
+        return to_xml(P(info, cls="has-text-grey-light is-italic"))
+    if not apps:
+        return to_xml(P("Список пуст", cls="has-text-grey-light is-italic"))
+
+    cards = []
+    for app_item in apps:
+        href = _app_href(app_item)
+        cards.append(
+            Div(
+                Div(
+                    Span(app_item["slug"], cls="has-text-weight-semibold"),
+                    P(href, cls="is-size-7 has-text-grey"),
+                    cls="is-flex-grow-1",
+                ),
+                A(
+                    "Открыть",
+                    href=href,
+                    target="_blank",
+                    cls="button is-small is-link is-light",
+                ),
+                cls="box p-3 mb-3 is-flex is-justify-content-space-between is-align-items-center",
+                style="gap: 8px;",
+            )
+        )
+    return to_xml(Div(*cards))
+
+
+def render_users_fragment(
+    users: list[dict] | None = None,
+    *,
+    info: str | None = None,
+    error: str | None = None,
+) -> str:
+    if error:
+        return to_xml(P(error, cls="has-text-danger"))
+    if info:
+        return to_xml(P(info, cls="has-text-grey-light is-italic"))
+    if not users:
+        return to_xml(
+            P("Список пользователей пуст", cls="has-text-grey-light is-italic")
+        )
+
+    cards = [P("Список пользователей", cls="has-text-weight-semibold mb-3")]
+    for user in users:
+        stats = user.get("stats", {})
+        cards.append(
+            Div(
+                Div(
+                    Span(f"ID {user['id']}", cls="tag is-light"),
+                    Span(user["key"], cls="ml-2 is-family-monospace"),
+                    cls="mb-2",
+                ),
+                P(user.get("comment") or "", cls="is-size-7 has-text-grey mb-2"),
+                Div(
+                    Span(
+                        f"Gen {stats.get('generated', 0)}", cls="tag is-info is-light"
+                    ),
+                    Span(
+                        f"View URL {stats.get('view_stateless', 0)}",
+                        cls="tag is-link is-light ml-1",
+                    ),
+                    Span(
+                        f"Apps {stats.get('apps_count', 0)}",
+                        cls="tag is-success is-light ml-1",
+                    ),
+                    Span(
+                        f"View /p {stats.get('view_persistent', 0)}",
+                        cls="tag is-warning is-light ml-1",
+                    ),
+                ),
+                cls="box p-3 mb-3",
+            )
+        )
+    return to_xml(Div(*cards))
+
+
 def render_admin_page() -> str:
     return _document(
         "Link Generator Pro",
@@ -343,7 +318,6 @@ def render_admin_page() -> str:
                                     id="key",
                                     placeholder="Введите ваш секретный ключ",
                                     cls="input is-medium",
-                                    oninput="onKeyChange()",
                                 ),
                                 Span(
                                     I(cls="ph ph-eye", id="eye-icon"),
@@ -420,9 +394,22 @@ def render_admin_page() -> str:
                         ),
                         Div(
                             Div(
-                                NotStr(
-                                    """<div class="tabs is-centered mt-4"><ul><li id="tab-saved" class="is-active"><a onclick="switchTab('saved')">Сохраненные (DB)</a></li><li id="tab-users" class="is-hidden"><a onclick="switchTab('users')">Пользователи</a></li></ul></div>"""
-                                )
+                                Div(
+                                    A(
+                                        "Сохраненные (DB)",
+                                        onclick="switchTab('saved')",
+                                    ),
+                                    id="tab-saved",
+                                    cls="is-active",
+                                ),
+                                Div(
+                                    A(
+                                        "Пользователи",
+                                        onclick="switchTab('users')",
+                                    ),
+                                    id="tab-users",
+                                ),
+                                cls="tabs is-centered mt-4",
                             ),
                             Div(
                                 Div(
@@ -443,20 +430,34 @@ def render_admin_page() -> str:
                                             Span("Сохранить"),
                                             id="save-btn",
                                             cls="button is-primary",
-                                            onclick="saveApp()",
+                                            hx_post="/admin/fragments/apps/save",
+                                            hx_include="#key,#app-slug,#code",
+                                            hx_target="#apps-list",
+                                            hx_swap="innerHTML",
                                         ),
                                         cls="control",
                                     ),
                                     cls="field has-addons mt-4",
                                 ),
                                 P(
-                                    NotStr(
-                                        "Приложение будет доступно по адресу <code>/p{id}/{имя}</code>"
-                                    ),
+                                    "Приложение будет доступно по адресу /p{id}/{имя}",
                                     id="editing-status",
-                                    cls="help mb-5",
+                                    cls="help mb-4",
                                 ),
-                                Div(id="apps-list", cls="mt-4"),
+                                Button(
+                                    "Обновить список",
+                                    id="refresh-apps-btn",
+                                    cls="button is-small is-light",
+                                    hx_get="/admin/fragments/apps",
+                                    hx_include="#key",
+                                    hx_target="#apps-list",
+                                    hx_swap="innerHTML",
+                                ),
+                                Div(
+                                    "Введите ключ чтобы увидеть приложения...",
+                                    id="apps-list",
+                                    cls="mt-4 has-text-grey-light is-italic",
+                                ),
                                 id="content-saved",
                             ),
                             Div(
@@ -501,12 +502,29 @@ def render_admin_page() -> str:
                                     ),
                                     Button(
                                         "Создать пользователя",
+                                        id="create-user-btn",
                                         cls="button is-primary is-fullwidth",
-                                        onclick="createUser()",
+                                        hx_post="/admin/fragments/users/create",
+                                        hx_include="#key,#new-user-key,#new-user-comment",
+                                        hx_target="#users-list",
+                                        hx_swap="innerHTML",
+                                    ),
+                                    Button(
+                                        "Обновить пользователей",
+                                        id="refresh-users-btn",
+                                        cls="button is-light is-fullwidth mt-2",
+                                        hx_get="/admin/fragments/users",
+                                        hx_include="#key",
+                                        hx_target="#users-list",
+                                        hx_swap="innerHTML",
                                     ),
                                     cls="box has-background-light",
                                 ),
-                                Div(id="users-list"),
+                                Div(
+                                    "Введите admin ключ для списка пользователей",
+                                    id="users-list",
+                                    cls="has-text-grey-light is-italic",
+                                ),
                                 id="content-users",
                                 cls="is-hidden",
                             ),

@@ -2,7 +2,7 @@ import hmac
 import logging
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from application.auth import get_current_user_by_key
@@ -28,10 +28,35 @@ from interface.schemas import (
     GenerateRequest,
     SaveAppRequest,
 )
-from ui.pages import render_admin_page, render_home_page
+from ui.pages import (
+    render_admin_page,
+    render_apps_fragment,
+    render_home_page,
+    render_users_fragment,
+)
 
 
 def register_routes(app: FastAPI, default_secret: str, default_domain: str) -> None:
+    def with_user_stats(users: list[dict]) -> list[dict]:
+        stats = get_users_stats()
+        for user in users:
+            uid = user["id"]
+            user["stats"] = stats.get(
+                uid,
+                {
+                    "generated": 0,
+                    "view_stateless": 0,
+                    "view_persistent": 0,
+                    "apps_count": 0,
+                },
+            )
+        return users
+
+    def apps_for_user(user_id: int) -> list[dict]:
+        if user_id == 1:
+            return list_apps(user_id=None)
+        return list_apps(user_id=user_id)
+
     @app.get("/", response_class=HTMLResponse)
     async def run_app(
         request: Request, d: Optional[str] = None, s: Optional[str] = None
@@ -92,6 +117,99 @@ def register_routes(app: FastAPI, default_secret: str, default_domain: str) -> N
     @app.get("/admin", response_class=HTMLResponse)
     async def admin_page(request: Request):
         return HTMLResponse(content=render_admin_page())
+
+    @app.get("/admin/fragments/apps", response_class=HTMLResponse)
+    async def admin_apps_fragment(key: str = ""):
+        if not key.strip():
+            return HTMLResponse(
+                content=render_apps_fragment(
+                    info="Введите ключ чтобы увидеть приложения..."
+                )
+            )
+
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_apps_fragment(error="Неверный ключ"))
+
+        return HTMLResponse(content=render_apps_fragment(apps_for_user(user["id"])))
+
+    @app.post("/admin/fragments/apps/save", response_class=HTMLResponse)
+    async def admin_apps_save_fragment(
+        key: str = Form(""),
+        slug: str = Form(""),
+        html: str = Form(""),
+    ):
+        if not key.strip():
+            return HTMLResponse(content=render_apps_fragment(error="Нужен ключ"))
+        if not slug.strip():
+            return HTMLResponse(content=render_apps_fragment(error="Нужно имя ссылки"))
+
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_apps_fragment(error="Неверный ключ"))
+
+        save_app(slug.strip(), html, user_id=user["id"])
+        apps = apps_for_user(user["id"])
+        return HTMLResponse(content=render_apps_fragment(apps))
+
+    @app.get("/admin/fragments/users", response_class=HTMLResponse)
+    async def admin_users_fragment(key: str = ""):
+        if not key.strip():
+            return HTMLResponse(
+                content=render_users_fragment(
+                    info="Введите admin ключ для списка пользователей"
+                )
+            )
+
+        try:
+            user = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_users_fragment(error="Неверный ключ"))
+        if user["id"] != 1:
+            return HTMLResponse(
+                content=render_users_fragment(
+                    error="Только admin может видеть пользователей"
+                )
+            )
+
+        return HTMLResponse(
+            content=render_users_fragment(with_user_stats(list_users()))
+        )
+
+    @app.post("/admin/fragments/users/create", response_class=HTMLResponse)
+    async def admin_users_create_fragment(
+        key: str = Form(""),
+        new_user_key: str = Form(""),
+        new_user_comment: str = Form(""),
+    ):
+        if not key.strip():
+            return HTMLResponse(content=render_users_fragment(error="Нужен admin ключ"))
+        if not new_user_key.strip():
+            return HTMLResponse(content=render_users_fragment(error="Нужен новый ключ"))
+
+        try:
+            admin = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_users_fragment(error="Неверный ключ"))
+        if admin["id"] != 1:
+            return HTMLResponse(
+                content=render_users_fragment(
+                    error="Только admin может создавать пользователей"
+                )
+            )
+
+        try:
+            create_user(new_user_key.strip(), new_user_comment.strip())
+        except ValueError:
+            return HTMLResponse(
+                content=render_users_fragment(error="Ключ уже существует")
+            )
+
+        return HTMLResponse(
+            content=render_users_fragment(with_user_stats(list_users()))
+        )
 
     @app.post("/api/generate")
     async def generate_api(req: GenerateRequest):
@@ -191,19 +309,4 @@ def register_routes(app: FastAPI, default_secret: str, default_domain: str) -> N
         if user["id"] != 1:
             raise HTTPException(status_code=403, detail="Only Admin can list users")
 
-        users = list_users()
-        stats = get_users_stats()
-
-        for u in users:
-            uid = u["id"]
-            if uid in stats:
-                u["stats"] = stats[uid]
-            else:
-                u["stats"] = {
-                    "generated": 0,
-                    "view_stateless": 0,
-                    "view_persistent": 0,
-                    "apps_count": 0,
-                }
-
-        return users
+        return with_user_stats(list_users())

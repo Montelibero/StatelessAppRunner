@@ -1,4 +1,9 @@
-from ui.pages import render_home_page, render_admin_page
+from ui.pages import (
+    render_admin_page,
+    render_apps_fragment,
+    render_home_page,
+    render_users_fragment,
+)
 
 
 def test_render_home_page_contains_core_markers():
@@ -13,12 +18,16 @@ def test_render_admin_page_contains_core_markers():
     html = render_admin_page()
     assert "Генератор ссылок" in html
     assert "bulma.min.css" in html
+    assert "htmx.org" in html
     assert 'id="generate-btn"' in html
     assert 'id="advanced-btn"' in html
     assert 'id="advanced-panel"' in html
     assert 'id="tab-users"' in html
     assert 'id="content-saved"' in html
     assert 'id="users-list"' in html
+    assert "/admin/fragments/apps" in html
+    assert "/admin/fragments/users" in html
+    assert "innerHTML =" not in html
     assert 'const fullKey = "mini" + uuidPart;' not in html
 
 
@@ -33,3 +42,41 @@ def test_render_pages_do_not_read_template_files(monkeypatch):
 
     assert "Stateless App Runner" in home_html
     assert "Генератор ссылок" in admin_html
+
+
+def test_render_apps_fragment_states():
+    assert "has-text-danger" in render_apps_fragment(error="Ошибка")
+    assert "Введите ключ" in render_apps_fragment(info="Введите ключ")
+    assert "Список пуст" in render_apps_fragment([])
+
+    html = render_apps_fragment([{"slug": "demo", "user_id": 1}])
+    assert "demo" in html
+    assert "/p/demo" in html
+
+    html_user = render_apps_fragment([{"slug": "demo2", "user_id": 7}])
+    assert "/p7/demo2" in html_user
+
+
+def test_render_users_fragment_states():
+    assert "has-text-danger" in render_users_fragment(error="Ошибка")
+    assert "Введите admin ключ" in render_users_fragment(info="Введите admin ключ")
+    assert "пуст" in render_users_fragment([])
+
+    html = render_users_fragment(
+        [
+            {
+                "id": 5,
+                "key": "mini_abc",
+                "comment": "QA",
+                "stats": {
+                    "generated": 1,
+                    "view_stateless": 2,
+                    "view_persistent": 3,
+                    "apps_count": 4,
+                },
+            }
+        ]
+    )
+    assert "Список пользователей" in html
+    assert "mini_abc" in html
+    assert "View /p 3" in html

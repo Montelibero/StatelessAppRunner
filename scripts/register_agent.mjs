@@ -30,7 +30,7 @@ function deriveAgentId(secret) {
 }
 
 function challengeOk(agentId) {
-  return agentId.endsWith('MTL') && agentId.length >= 8 && /^[A-Z]{8}/.test(agentId);
+  return agentId.startsWith('MTL') && agentId.length >= 8 && /^[A-Z]{8}/.test(agentId);
 }
 
 function newSecret() {

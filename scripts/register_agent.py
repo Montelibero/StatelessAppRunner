@@ -23,7 +23,7 @@ def derive_agent_id(agent_secret: str) -> str:
 
 
 def challenge_ok(agent_id: str) -> bool:
-    return agent_id.endswith("MTL") and len(agent_id) >= 8 and agent_id[:8].isalpha()
+    return agent_id.startswith("MTL") and len(agent_id) >= 8 and agent_id[:8].isalpha()
 
 
 def new_secret() -> str:

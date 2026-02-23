@@ -1,19 +1,16 @@
 import ast
 import pathlib
-from typing import Iterable
+from collections import defaultdict
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = ROOT / "app"
 
 
-def import_roots(tree: ast.AST) -> Iterable[str]:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                yield alias.name.split(".")[0]
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                yield node.module.split(".")[0]
+def module_name(path: pathlib.Path) -> str:
+    rel = path.relative_to(APP)
+    if rel.name == "__init__.py":
+        return ""
+    return str(rel.with_suffix("")).replace("/", ".")
 
 
 def parse_file(path: pathlib.Path) -> ast.AST:
@@ -28,61 +25,144 @@ def in_dir(path: pathlib.Path, name: str) -> bool:
         return False
 
 
-def check_file(path: pathlib.Path) -> list[str]:
-    errs: list[str] = []
-    tree = parse_file(path)
-    roots = set(import_roots(tree))
-    rel = path.relative_to(ROOT)
+def normalize_target(raw: str, modules: set[str]) -> str | None:
+    if raw in modules:
+        return raw
 
-    if in_dir(path, "application"):
-        forbidden = {"interface", "ui", "main"}
-        bad = sorted(roots & forbidden)
-        if bad:
-            errs.append(f"{rel}: application layer must not import {', '.join(bad)}")
+    cur = raw
+    while "." in cur:
+        cur = cur.rsplit(".", 1)[0]
+        if cur in modules:
+            return cur
+    return None
 
-    if in_dir(path, "ui"):
-        forbidden = {"interface", "application", "db", "main"}
-        bad = sorted(roots & forbidden)
-        if bad:
-            errs.append(f"{rel}: ui layer must not import {', '.join(bad)}")
 
-    if rel == pathlib.Path("app/db.py"):
-        forbidden = {"interface", "ui", "main"}
-        bad = sorted(roots & forbidden)
-        if bad:
-            errs.append(
-                f"{rel}: infrastructure db layer must not import {', '.join(bad)}"
-            )
+def internal_imports(tree: ast.AST, modules: set[str]) -> set[str]:
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                target = normalize_target(alias.name, modules)
+                if target:
+                    out.add(target)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module:
+                target = normalize_target(node.module, modules)
+                if target:
+                    out.add(target)
+    return out
 
-    if rel == pathlib.Path("app/main.py"):
-        required = {
-            "from interface.routes import register_routes": "main.py must register routes via interface layer",
-        }
-        text = path.read_text(encoding="utf-8")
-        for marker, msg in required.items():
-            if marker not in text:
-                errs.append(f"{rel}: {msg}")
 
-    if rel == pathlib.Path("app/interface/routes.py"):
-        text = path.read_text(encoding="utf-8")
-        if "from ui.pages import" not in text:
-            errs.append(
-                f"{rel}: interface routes must keep system UI rendering via ui.pages"
-            )
+def has_prefix(module: str, prefix: str) -> bool:
+    return module == prefix or module.startswith(prefix + ".")
 
-    return errs
+
+def first_reachable_forbidden(
+    graph: dict[str, set[str]], start: str, forbidden_prefixes: set[str]
+) -> str | None:
+    stack = [start]
+    seen = {start}
+    while stack:
+        cur = stack.pop()
+        for nxt in graph.get(cur, set()):
+            if any(has_prefix(nxt, p) for p in forbidden_prefixes):
+                return nxt
+            if nxt not in seen:
+                seen.add(nxt)
+                stack.append(nxt)
+    return None
+
+
+def detect_cycle(graph: dict[str, set[str]]) -> list[str] | None:
+    color: dict[str, int] = defaultdict(int)  # 0=white, 1=gray, 2=black
+    parent: dict[str, str] = {}
+
+    def dfs(node: str) -> list[str] | None:
+        color[node] = 1
+        for nxt in graph.get(node, set()):
+            if color[nxt] == 0:
+                parent[nxt] = node
+                cycle = dfs(nxt)
+                if cycle:
+                    return cycle
+            elif color[nxt] == 1:
+                cycle = [nxt]
+                cur = node
+                while cur != nxt:
+                    cycle.append(cur)
+                    cur = parent[cur]
+                cycle.append(nxt)
+                cycle.reverse()
+                return cycle
+        color[node] = 2
+        return None
+
+    for node in sorted(graph):
+        if color[node] == 0:
+            cycle = dfs(node)
+            if cycle:
+                return cycle
+    return None
 
 
 def main() -> int:
-    files = sorted((APP).rglob("*.py"))
+    files = sorted(p for p in APP.rglob("*.py") if p.name != "__init__.py")
+    modules = {module_name(p) for p in files}
+
+    graph: dict[str, set[str]] = {}
+    text_by_module: dict[str, str] = {}
+    path_by_module: dict[str, pathlib.Path] = {}
     errors: list[str] = []
+
     for path in files:
-        errors.extend(check_file(path))
+        mod = module_name(path)
+        tree = parse_file(path)
+        imports = internal_imports(tree, modules)
+        graph[mod] = imports
+        text_by_module[mod] = path.read_text(encoding="utf-8")
+        path_by_module[mod] = path
+
+    # Required architecture markers.
+    main_text = text_by_module.get("main", "")
+    if "from interface.routes import register_routes" not in main_text:
+        errors.append("app/main.py: main.py must register routes via interface layer")
+
+    routes_text = text_by_module.get("interface.routes", "")
+    if "from ui.pages import" not in routes_text:
+        errors.append(
+            "app/interface/routes.py: interface routes must keep system UI rendering via ui.pages"
+        )
+
+    # Layer constraints (transitive).
+    for mod in sorted(modules):
+        path = path_by_module[mod]
+        rel = path.relative_to(ROOT)
+
+        if has_prefix(mod, "application"):
+            bad = first_reachable_forbidden(graph, mod, {"interface", "ui", "main"})
+            if bad:
+                errors.append(f"{rel}: application layer must not depend on {bad}")
+
+        if has_prefix(mod, "ui"):
+            bad = first_reachable_forbidden(
+                graph, mod, {"interface", "application", "db", "main"}
+            )
+            if bad:
+                errors.append(f"{rel}: ui layer must not depend on {bad}")
+
+        if mod == "db":
+            bad = first_reachable_forbidden(graph, mod, {"interface", "ui", "main"})
+            if bad:
+                errors.append(f"{rel}: db layer must not depend on {bad}")
+
+    cycle = detect_cycle(graph)
+    if cycle:
+        errors.append("import cycle detected in app/: " + " -> ".join(cycle))
 
     if errors:
         print("arch-test failed:")
-        for e in errors:
-            print(f"- {e}")
+        for err in errors:
+            print(f"- {err}")
         return 1
 
     print("arch-test: ok")

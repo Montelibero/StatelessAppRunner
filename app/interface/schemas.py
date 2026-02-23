@@ -30,6 +30,8 @@ class CreateUserRequest(BaseModel):
 
 class AgentRegisterRequest(BaseModel):
     agent_secret: str
+    pow_challenge: Optional[str] = None
+    pow_nonce: Optional[str] = None
     agent_name: Optional[str] = None
     client: Optional[str] = None
 

@@ -12,6 +12,9 @@ def test_skill_md_contains_required_agent_flow():
     assert "https://mtlminiapps.us/scripts/register_agent.py" in text
     assert "https://mtlminiapps.us/scripts/register_agent.mjs" in text
     assert "Do not ask user to provide `agent_secret`." in text
+    assert "`pow_nonce`" in text
+    assert "Persistent pages per agent are limited." in text
+    assert "reusing existing `slug`" in text
 
 
 def test_llm_txt_contains_required_agent_flow():
@@ -22,6 +25,9 @@ def test_llm_txt_contains_required_agent_flow():
     assert "compress" in text and "default true" in text.lower()
     assert "TTL" in text
     assert "Do not ask user for `agent_secret`" in text
+    assert "`pow_nonce`" in text
+    assert "Persistent pages per agent are limited." in text
+    assert "reusing existing slug" in text
 
 
 def test_register_agent_python_script_contains_core_steps():
@@ -30,6 +36,7 @@ def test_register_agent_python_script_contains_core_steps():
     assert "base64.b32encode" in text
     assert "while True" in text
     assert "/api/agent/register" in text
+    assert "pow_nonce" in text
     assert "bearer_token" in text
 
 
@@ -39,4 +46,5 @@ def test_register_agent_node_script_contains_core_steps():
     assert ".toString('base64')" in text or "base32" in text.lower()
     assert "while (true)" in text
     assert "/api/agent/register" in text
+    assert "pow_nonce" in text
     assert "bearer_token" in text

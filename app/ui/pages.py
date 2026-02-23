@@ -251,23 +251,23 @@ def render_home_page() -> str:
                                 P("How it works", cls="title is-5 mb-3"),
                                 Div(
                                     P(
-                                        "1. Register and get Bearer token.",
+                                        "1. Send HTML and receive a stateless link.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "2. POST /api/agent/generate and receive signed URL.",
+                                        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "3. Open link in browser: page payload is in URL, code runs client-side.",
+                                        "3. Persistent link is shorter: HTML is stored on server and opened by slug.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "Default mode is stateless URL delivery; payload is encoded directly inside the link.",
+                                        "4. Use stateless for default delivery; use persistent when you need short reusable links.",
                                         cls="is-size-7 mb-1",
                                     ),
                                     P(
-                                        "Stateless links are signed to prevent tampering; code runs in the user's browser.",
+                                        "5. In both modes, whoever has the link can open it.",
                                         cls="is-size-7",
                                     ),
                                     cls="panel-card mb-4",
@@ -291,47 +291,23 @@ def render_home_page() -> str:
                                 ),
                                 Div(
                                     P(
-                                        "Agent Quickstart (copy-paste)",
+                                        "Agent setup",
                                         cls="title is-5 mb-3",
                                     ),
                                     Div(
                                         P(
-                                            "1. Register and get token",
+                                            "Follow instructions in skill.md",
                                             cls="has-text-weight-semibold mb-1",
-                                        ),
-                                        P(
-                                            "Run one script and copy bearer_token.",
-                                            cls="is-size-7 mb-1",
                                         ),
                                         P(
                                             NotStr(
-                                                '<a href="https://mtlminiapps.us/scripts/register_agent.py">https://mtlminiapps.us/scripts/register_agent.py</a> or <a href="https://mtlminiapps.us/scripts/register_agent.mjs">https://mtlminiapps.us/scripts/register_agent.mjs</a>'
+                                                '<a href="https://mtlminiapps.us/skill.md">https://mtlminiapps.us/skill.md</a>'
                                             ),
-                                            cls="skill-line mb-3",
-                                        ),
-                                        P(
-                                            "2. Generate a stateless page",
-                                            cls="has-text-weight-semibold mb-1",
-                                        ),
-                                        P(
-                                            "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer <token>",
                                             cls="skill-line mb-2",
                                         ),
                                         P(
-                                            "compress default: true",
+                                            "The full flow is documented there.",
                                             cls="is-size-7 mb-1",
-                                        ),
-                                        P(
-                                            "raw HTML limit: 100KB",
-                                            cls="is-size-7 mb-3",
-                                        ),
-                                        P(
-                                            "3. Optional persistent pages",
-                                            cls="has-text-weight-semibold mb-1",
-                                        ),
-                                        P(
-                                            "/a/{agent_id}/{slug} and retention is 7 days since last open (AGENT_APP_TTL_DAYS).",
-                                            cls="is-size-7",
                                         ),
                                         id="agent-quickstart",
                                         cls="panel-card mb-4",
@@ -343,7 +319,7 @@ def render_home_page() -> str:
                                         cls="has-text-weight-semibold mb-1",
                                     ),
                                     P(
-                                        "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open.",
+                                        "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug.",
                                         cls="is-size-7",
                                     ),
                                     cls="panel-card mb-4",
@@ -357,7 +333,7 @@ def render_home_page() -> str:
                                         cls="skill-line mb-2",
                                     ),
                                     P(
-                                        "If you're a human: share these links with your agent.",
+                                        "If you're a human: share https://mtlminiapps.us/skill.md with your agent.",
                                         cls="is-size-7 has-text-grey",
                                     ),
                                     id="llm",

@@ -20,32 +20,43 @@ def test_render_home_page_contains_core_markers():
     assert "Info page" in html
     assert "Interactive mini-app" in html
     assert "How it works" in html
-    assert "Register and get Bearer token." in html
-    assert "POST /api/agent/generate and receive signed URL." in html
+    assert "1. Send HTML and receive a stateless link." in html
     assert (
-        "Stateless links are signed to prevent tampering; code runs in the user's browser."
+        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage."
         in html
     )
-    assert "Agent Quickstart (copy-paste)" in html
-    assert "https://mtlminiapps.us/scripts/register_agent.py" in html
-    assert "https://mtlminiapps.us/scripts/register_agent.mjs" in html
+    assert (
+        "3. Persistent link is shorter: HTML is stored on server and opened by slug."
+        in html
+    )
+    assert (
+        "4. Use stateless for default delivery; use persistent when you need short reusable links."
+        in html
+    )
+    assert "5. In both modes, whoever has the link can open it." in html
+    assert "Agent setup" in html
+    assert "Follow instructions in skill.md" in html
+    assert "The full flow is documented there." in html
+    assert "Register and get Bearer token." not in html
+    assert "POST /api/agent/generate and receive signed URL." not in html
+    assert "https://mtlminiapps.us/scripts/register_agent.py" not in html
+    assert "https://mtlminiapps.us/scripts/register_agent.mjs" not in html
     assert (
         "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer &lt;token&gt;"
-        in html
+        not in html
     )
-    assert "compress default: true" in html
-    assert "raw HTML limit: 100KB" in html
-    assert "/a/{agent_id}/{slug}" in html
-    assert "AGENT_APP_TTL_DAYS" in html
     assert "Limits &amp; retention" in html
     assert (
-        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open."
+        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
         in html
     )
     assert "Docs for agents / LLMs" in html
     assert "https://mtlminiapps.us/skill.md" in html
     assert "https://mtlminiapps.us/llm.txt" in html
-    assert "If you're a human: share these links with your agent." in html
+    assert (
+        "If you're a human: share https://mtlminiapps.us/skill.md with your agent."
+        in html
+    )
     assert "Open working example" in html
     assert 'href="https://mtlminiapps.us/?d=' in html
     assert 'href="/admin"' not in html

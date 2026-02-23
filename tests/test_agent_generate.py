@@ -11,7 +11,15 @@ def _register_test_agent(monkeypatch) -> str:
         return True, "ABCDEFGHZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZMTL"
 
     monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
-    reg = client.post("/api/agent/register", json={"agent_secret": "seed"})
+    monkeypatch.setattr(
+        routes_module,
+        "verify_registration_pow",
+        lambda *_args, **_kwargs: True,
+    )
+    reg = client.post(
+        "/api/agent/register",
+        json={"agent_secret": "seed", "pow_challenge": "x.y", "pow_nonce": "1"},
+    )
     assert reg.status_code == 200
     return reg.json()["bearer_token"]
 

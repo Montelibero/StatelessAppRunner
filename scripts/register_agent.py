@@ -20,11 +20,8 @@ def b32_no_pad(data: bytes) -> str:
 
 def derive_agent_id(agent_secret: str) -> str:
     digest = hashlib.sha256(agent_secret.encode("utf-8")).digest()
-    return b32_no_pad(digest)
-
-
-def challenge_ok(agent_id: str) -> bool:
-    return agent_id.startswith("MTLA") and len(agent_id) >= 8 and agent_id[:8].isalpha()
+    body = b32_no_pad(digest)
+    return f"MTLA{body[4:]}"
 
 
 def new_secret() -> str:
@@ -32,9 +29,28 @@ def new_secret() -> str:
     return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
 
 
-def register(base_url: str, agent_secret: str, agent_name: str) -> dict:
+def fetch_pow_challenge(base_url: str) -> dict:
+    req = request.Request(
+        f"{base_url}/api/agent/register/challenge",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def register(
+    base_url: str,
+    agent_secret: str,
+    pow_challenge: str,
+    pow_nonce: str,
+    agent_name: str,
+) -> dict:
     payload = {
         "agent_secret": agent_secret,
+        "pow_challenge": pow_challenge,
+        "pow_nonce": pow_nonce,
         "agent_name": agent_name,
         "client": "python",
     }
@@ -49,32 +65,60 @@ def register(base_url: str, agent_secret: str, agent_name: str) -> dict:
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _leading_zero_bits(data: bytes) -> int:
+    bits = 0
+    for b in data:
+        if b == 0:
+            bits += 8
+            continue
+        return bits + (8 - b.bit_length())
+    return bits
+
+
+def _b64url_decode(value: str) -> bytes:
+    pad = "=" * ((4 - len(value) % 4) % 4)
+    return base64.urlsafe_b64decode((value + pad).encode("utf-8"))
+
+
+def pow_bits_from_challenge(challenge: str) -> int:
+    payload_b64 = challenge.split(".", 1)[0]
+    payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    return int(payload["b"])
+
+
+def solve_registration_pow(
+    secret: str, challenge: str, bits: int
+) -> tuple[str, int, float]:
+    payload_b64 = challenge.split(".", 1)[0]
+    payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    seed = str(payload["n"])
+    started_at = time.monotonic()
+    tries = 0
+    nonce = 0
+    while True:
+        tries += 1
+        nonce += 1
+        nonce_s = str(nonce)
+        digest = hashlib.sha256(f"{seed}:{secret}:{nonce_s}".encode("utf-8")).digest()
+        if _leading_zero_bits(digest) >= bits:
+            break
+    return nonce_s, tries, time.monotonic() - started_at
+
+
 def main() -> None:
     base_url = os.getenv("APP_BASE_URL", "https://mtlminiapps.us").rstrip("/")
     agent_name = os.getenv("AGENT_NAME", "agent-python")
-    target_seconds = int(os.getenv("POW_TARGET_SECONDS", "10"))
-
-    tries = 0
-    started_at = time.monotonic()
-    last_valid_secret = None
-    last_valid_agent_id = None
-    while True:
-        tries += 1
-        agent_secret = new_secret()
-        agent_id = derive_agent_id(agent_secret)
-        if challenge_ok(agent_id):
-            last_valid_secret = agent_secret
-            last_valid_agent_id = agent_id
-            elapsed = time.monotonic() - started_at
-            if elapsed >= target_seconds:
-                break
-
-    if last_valid_secret is None or last_valid_agent_id is None:
-        raise RuntimeError("Failed to produce valid challenge result")
-
-    elapsed = time.monotonic() - started_at
-    print(f"Challenge solved in {tries} tries ({elapsed:.1f}s)")
-    result = register(base_url, last_valid_secret, agent_name)
+    agent_secret = new_secret()
+    challenge = fetch_pow_challenge(base_url)
+    pow_challenge = challenge["pow_challenge"]
+    bits = pow_bits_from_challenge(pow_challenge)
+    pow_nonce, pow_tries, pow_elapsed = solve_registration_pow(
+        agent_secret, pow_challenge, bits
+    )
+    print(
+        f"Registration PoW solved in {pow_tries} tries ({pow_elapsed:.1f}s), nonce={pow_nonce}"
+    )
+    result = register(base_url, agent_secret, pow_challenge, pow_nonce, agent_name)
     bearer_token = result["bearer_token"]
 
     print("\nagent_id:", result["agent_id"])

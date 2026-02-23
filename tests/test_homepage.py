@@ -22,39 +22,48 @@ def test_homepage_structure():
     assert "Info page" in response.text
     assert "Interactive mini-app" in response.text
     assert "How it works" in response.text
-    assert "Register and get Bearer token." in response.text
-    assert "POST /api/agent/generate and receive signed URL." in response.text
+    assert "1. Send HTML and receive a stateless link." in response.text
     assert (
-        "Stateless links are signed to prevent tampering; code runs in the user's browser."
+        "2. Stateless link is long: HTML is encoded inside URL and opens without server storage."
         in response.text
     )
-    assert "Agent Quickstart (copy-paste)" in response.text
-    assert "https://mtlminiapps.us/scripts/register_agent.py" in response.text
-    assert "https://mtlminiapps.us/scripts/register_agent.mjs" in response.text
+    assert (
+        "3. Persistent link is shorter: HTML is stored on server and opened by slug."
+        in response.text
+    )
+    assert (
+        "4. Use stateless for default delivery; use persistent when you need short reusable links."
+        in response.text
+    )
+    assert "5. In both modes, whoever has the link can open it." in response.text
+    assert "Agent setup" in response.text
+    assert "Follow instructions in skill.md" in response.text
+    assert "The full flow is documented there." in response.text
+    assert "Register and get Bearer token." not in response.text
+    assert "POST /api/agent/generate and receive signed URL." not in response.text
+    assert "https://mtlminiapps.us/scripts/register_agent.py" not in response.text
+    assert "https://mtlminiapps.us/scripts/register_agent.mjs" not in response.text
     assert (
         "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer &lt;token&gt;"
-        in response.text
-        or "POST https://mtlminiapps.us/api/agent/generate with Authorization: Bearer <token>"
-        in response.text
+        not in response.text
     )
-    assert "compress default: true" in response.text
-    assert "raw HTML limit: 100KB" in response.text
-    assert "/a/{agent_id}/{slug}" in response.text
-    assert "AGENT_APP_TTL_DAYS" in response.text
     assert (
         "Limits &amp; retention" in response.text
         or "Limits & retention" in response.text
     )
     assert (
-        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open."
+        "Raw HTML &lt;= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
         in response.text
-        or "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open."
+        or "Raw HTML <= 100KB; compress default true; persistent TTL 7 days since last open; persistent pages per agent are limited, so delete old pages or reuse existing slug."
         in response.text
     )
     assert "Docs for agents / LLMs" in response.text
     assert "https://mtlminiapps.us/llm.txt" in response.text
     assert "https://mtlminiapps.us/skill.md" in response.text
-    assert "If you're a human: share these links with your agent." in response.text
+    assert (
+        "If you're a human: share https://mtlminiapps.us/skill.md with your agent."
+        in response.text
+    )
     assert "Open working example" in response.text
     assert 'href="https://mtlminiapps.us/?d=' in response.text
     assert "View source on GitHub" in response.text

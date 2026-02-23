@@ -16,7 +16,15 @@ def _register_test_agent(monkeypatch) -> tuple[str, str]:
         return True, agent_id
 
     monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
-    reg = client.post("/api/agent/register", json={"agent_secret": "seed-ttl"})
+    monkeypatch.setattr(
+        routes_module,
+        "verify_registration_pow",
+        lambda *_args, **_kwargs: True,
+    )
+    reg = client.post(
+        "/api/agent/register",
+        json={"agent_secret": "seed-ttl", "pow_challenge": "x.y", "pow_nonce": "1"},
+    )
     assert reg.status_code == 200
     body = reg.json()
     return body["bearer_token"], body["agent_id"]

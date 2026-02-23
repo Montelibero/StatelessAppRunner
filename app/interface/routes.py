@@ -6,6 +6,8 @@ import gzip
 import secrets
 import string
 import datetime as dt
+import os
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -65,20 +67,101 @@ from ui.pages import (
 
 def derive_agent_id(secret: str) -> str:
     digest = hashlib.sha256(secret.encode("utf-8")).digest()
-    return base64.b32encode(digest).decode("utf-8").rstrip("=")
+    # Deterministic ID without brute-force search: stable MTLA prefix + hash body.
+    body = base64.b32encode(digest).decode("utf-8").rstrip("=")
+    return f"MTLA{body[4:]}"
 
 
 def validate_agent_secret(secret: str) -> tuple[bool, str]:
     agent_id = derive_agent_id(secret)
-    is_valid = (
-        agent_id.startswith("MTLA") and len(agent_id) >= 8 and agent_id[:8].isalpha()
-    )
-    return is_valid, agent_id
+    if not secret.strip():
+        return False, agent_id
+    return True, agent_id
 
 
 def generate_agent_slug() -> str:
     alphabet = string.ascii_lowercase + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(8))
+
+
+def _leading_zero_bits(data: bytes) -> int:
+    bits = 0
+    for b in data:
+        if b == 0:
+            bits += 8
+            continue
+        return bits + (8 - b.bit_length())
+    return bits
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
+
+
+def _b64url_decode(value: str) -> bytes:
+    pad = "=" * ((4 - len(value) % 4) % 4)
+    return base64.urlsafe_b64decode((value + pad).encode("utf-8"))
+
+
+def make_pow_challenge(secret_key: str, bits: int, ttl_seconds: int) -> tuple[str, str]:
+    expires_ts = int(dt.datetime.now(dt.UTC).timestamp()) + ttl_seconds
+    payload = {"n": secrets.token_urlsafe(16), "b": bits, "e": expires_ts}
+    payload_raw = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    payload_b64 = _b64url(payload_raw)
+    sig = hmac.new(
+        secret_key.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    return f"{payload_b64}.{sig}", dt.datetime.fromtimestamp(
+        expires_ts, tz=dt.UTC
+    ).isoformat()
+
+
+def parse_pow_challenge(secret_key: str, challenge: str) -> Optional[dict]:
+    if "." not in challenge:
+        return None
+    payload_b64, sig = challenge.split(".", 1)
+    expected_sig = hmac.new(
+        secret_key.encode("utf-8"), payload_b64.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    if not hmac.compare_digest(expected_sig, sig):
+        return None
+    try:
+        payload = json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    for key in ("n", "b", "e"):
+        if key not in payload:
+            return None
+    try:
+        bits = int(payload["b"])
+        expires = int(payload["e"])
+    except (TypeError, ValueError):
+        return None
+    now_ts = int(dt.datetime.now(dt.UTC).timestamp())
+    if expires < now_ts:
+        return None
+    if bits < 1:
+        return None
+    payload["b"] = bits
+    payload["e"] = expires
+    return payload
+
+
+def verify_registration_pow(
+    agent_secret: str, pow_challenge: str, pow_nonce: str, secret_key: str
+) -> bool:
+    payload = parse_pow_challenge(secret_key, pow_challenge)
+    if not payload:
+        return False
+    bits = int(payload["b"])
+    seed = str(payload["n"])
+    payload_bytes = f"{seed}:{agent_secret}:{pow_nonce}".encode("utf-8")
+    digest = hashlib.sha256(payload_bytes).digest()
+    return _leading_zero_bits(digest) >= bits
 
 
 def register_routes(
@@ -247,8 +330,38 @@ def register_routes(
             path.read_text(encoding="utf-8"), media_type="text/plain"
         )
 
+    @app.post("/api/agent/register/challenge")
+    async def agent_register_challenge():
+        bits_raw = os.getenv("AGENT_REGISTER_POW_BITS", "24").strip()
+        ttl_raw = os.getenv("AGENT_REGISTER_POW_TTL_SECONDS", "300").strip()
+        try:
+            bits = int(bits_raw)
+        except ValueError:
+            bits = 24
+        try:
+            ttl_seconds = int(ttl_raw)
+        except ValueError:
+            ttl_seconds = 300
+        if bits < 1:
+            bits = 1
+        if ttl_seconds < 30:
+            ttl_seconds = 30
+        challenge, expires_at = make_pow_challenge(default_secret, bits, ttl_seconds)
+        return {
+            "pow_challenge": challenge,
+            "pow_bits": bits,
+            "expires_at": expires_at,
+        }
+
     @app.post("/api/agent/register")
     async def agent_register(req: AgentRegisterRequest):
+        if not req.pow_challenge or not req.pow_nonce:
+            raise HTTPException(status_code=400, detail="Agent PoW failed")
+        if not verify_registration_pow(
+            req.agent_secret, req.pow_challenge, req.pow_nonce, default_secret
+        ):
+            raise HTTPException(status_code=400, detail="Agent PoW failed")
+
         is_valid, agent_id = validate_agent_secret(req.agent_secret)
         if not is_valid:
             raise HTTPException(status_code=400, detail="Agent challenge failed")

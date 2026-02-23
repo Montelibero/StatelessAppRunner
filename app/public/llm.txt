@@ -4,6 +4,7 @@ Auth:
 - Use Authorization: Bearer <token>
 - Register token via POST https://mtlminiapps.us/api/agent/register
 - Do not ask user for `agent_secret`; run https://mtlminiapps.us/scripts/register_agent.py or https://mtlminiapps.us/scripts/register_agent.mjs
+- Registration payload must include `agent_secret`, `pow_challenge`, and `pow_nonce` (scripts handle this automatically).
 
 Default flow:
 - POST https://mtlminiapps.us/api/agent/generate
@@ -16,6 +17,8 @@ Optional persistent flow:
 - GET https://mtlminiapps.us/api/agent/apps
 - DELETE https://mtlminiapps.us/api/agent/apps/{slug}
 - Public route: GET https://mtlminiapps.us/a/{agent_id}/{slug}
+- Persistent pages per agent are limited.
+- Prefer deleting old pages or reusing existing slug.
 
 Rules:
 - compress default true for https://mtlminiapps.us/api/agent/generate

@@ -4,7 +4,6 @@ import { createHash, randomBytes } from 'node:crypto';
 
 const BASE_URL = (process.env.APP_BASE_URL || 'https://mtlminiapps.us').replace(/\/$/, '');
 const AGENT_NAME = process.env.AGENT_NAME || 'agent-node';
-const POW_TARGET_SECONDS = Number.parseInt(process.env.POW_TARGET_SECONDS || '10', 10);
 
 function toBase32(buf) {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -27,23 +26,47 @@ function toBase32(buf) {
 
 function deriveAgentId(secret) {
   const digest = createHash('sha256').update(secret, 'utf8').digest();
-  return toBase32(digest);
-}
-
-function challengeOk(agentId) {
-  return agentId.startsWith('MTLA') && agentId.length >= 8 && /^[A-Z]{8}/.test(agentId);
+  const body = toBase32(digest);
+  return `MTLA${body.slice(4)}`;
 }
 
 function newSecret() {
   return randomBytes(18).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
-async function register(agentSecret) {
+async function fetchPowChallenge() {
+  const res = await fetch(`${BASE_URL}/api/agent/register/challenge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{}',
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`challenge failed: ${res.status} ${text}`);
+  }
+  return await res.json();
+}
+
+function base64UrlDecode(input) {
+  const padLen = (4 - (input.length % 4)) % 4;
+  const padded = input + '='.repeat(padLen);
+  return Buffer.from(padded, 'base64url');
+}
+
+function parsePowChallenge(challenge) {
+  const [payloadB64] = challenge.split('.', 1);
+  const payload = JSON.parse(base64UrlDecode(payloadB64).toString('utf8'));
+  return { seed: String(payload.n), bits: Number(payload.b) };
+}
+
+async function register(agentSecret, powChallenge, powNonce) {
   const res = await fetch(`${BASE_URL}/api/agent/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       agent_secret: agentSecret,
+      pow_challenge: powChallenge,
+      pow_nonce: powNonce,
       agent_name: AGENT_NAME,
       client: 'node',
     }),
@@ -55,25 +78,47 @@ async function register(agentSecret) {
   return await res.json();
 }
 
-async function main() {
-  let tries = 0;
-  let agentSecret = null;
+function leadingZeroBits(buf) {
+  let bits = 0;
+  for (const byte of buf) {
+    if (byte === 0) {
+      bits += 8;
+      continue;
+    }
+    return bits + (8 - Math.floor(Math.log2(byte)) - 1);
+  }
+  return bits;
+}
+
+function solveRegistrationPow(seed, secret, bits) {
   const startedAt = Date.now();
+  let tries = 0;
+  let nonce = 0;
   while (true) {
     tries += 1;
-    const secret = newSecret();
-    const agentId = deriveAgentId(secret);
-    if (challengeOk(agentId)) {
-      agentSecret = secret;
-      const elapsedSec = (Date.now() - startedAt) / 1000;
-      if (elapsedSec >= POW_TARGET_SECONDS) break;
+    nonce += 1;
+    const nonceStr = String(nonce);
+    const digest = createHash('sha256')
+      .update(`${seed}:${secret}:${nonceStr}`, 'utf8')
+      .digest();
+    const elapsedSec = (Date.now() - startedAt) / 1000;
+    if (leadingZeroBits(digest) >= bits) {
+      return { nonce: nonceStr, tries, elapsedSec };
     }
   }
-  if (!agentSecret) throw new Error('failed to produce valid challenge result');
+}
 
-  const elapsedSec = (Date.now() - startedAt) / 1000;
-  console.log(`Challenge solved in ${tries} tries (${elapsedSec.toFixed(1)}s)`);
-  const data = await register(agentSecret);
+async function main() {
+  const agentSecret = newSecret();
+  const challengeResp = await fetchPowChallenge();
+  const powChallenge = challengeResp.pow_challenge;
+  const pow = parsePowChallenge(powChallenge);
+  const solved = solveRegistrationPow(pow.seed, agentSecret, pow.bits);
+  console.log(
+    `Registration PoW solved in ${solved.tries} tries (${solved.elapsedSec.toFixed(1)}s), nonce=${solved.nonce}`
+  );
+
+  const data = await register(agentSecret, powChallenge, solved.nonce);
   const bearer_token = data.bearer_token;
 
   console.log('\nagent_id:', data.agent_id);

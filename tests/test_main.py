@@ -144,9 +144,19 @@ def test_admin_agents_fragment_renders_registered_agent(monkeypatch):
         return True, "MTLAAAAAZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
 
     monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
+    monkeypatch.setattr(
+        routes_module,
+        "verify_registration_pow",
+        lambda *_args, **_kwargs: True,
+    )
     reg = client.post(
         "/api/agent/register",
-        json={"agent_secret": "seed-admin-agent", "agent_name": "admin-agent"},
+        json={
+            "agent_secret": "seed-admin-agent",
+            "pow_challenge": "x.y",
+            "pow_nonce": "1",
+            "agent_name": "admin-agent",
+        },
     )
     assert reg.status_code == 200
 
@@ -160,9 +170,19 @@ def _register_agent_for_admin_tests(monkeypatch, *, secret: str, name: str):
         return True, "MTLAAAAAZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ"
 
     monkeypatch.setattr(routes_module, "validate_agent_secret", fake_validate)
+    monkeypatch.setattr(
+        routes_module,
+        "verify_registration_pow",
+        lambda *_args, **_kwargs: True,
+    )
     reg = client.post(
         "/api/agent/register",
-        json={"agent_secret": secret, "agent_name": name},
+        json={
+            "agent_secret": secret,
+            "pow_challenge": "x.y",
+            "pow_nonce": "1",
+            "agent_name": name,
+        },
     )
     assert reg.status_code == 200
     token = reg.json()["bearer_token"]

@@ -86,6 +86,155 @@ function copyLink() {
   if (!text) return;
   navigator.clipboard.writeText(text);
 }
+
+let currentTab = 'saved';
+
+function toggleAdvancedPanel() {
+  const panel = document.getElementById('advanced-panel');
+  panel.classList.toggle('is-hidden');
+  if (!panel.classList.contains('is-hidden')) {
+    onKeyChange();
+    switchTab(currentTab);
+  }
+}
+
+function switchTab(tabName) {
+  currentTab = tabName;
+  document.getElementById('content-saved').classList.add('is-hidden');
+  document.getElementById('content-users').classList.add('is-hidden');
+  document.getElementById('tab-saved').classList.remove('is-active');
+  document.getElementById('tab-users').classList.remove('is-active');
+
+  if (tabName === 'saved') {
+    document.getElementById('content-saved').classList.remove('is-hidden');
+    document.getElementById('tab-saved').classList.add('is-active');
+    loadApps();
+  } else if (tabName === 'users') {
+    document.getElementById('content-users').classList.remove('is-hidden');
+    document.getElementById('tab-users').classList.add('is-active');
+    loadUsers();
+  }
+}
+
+async function onKeyChange() {
+  const key = document.getElementById('key').value.trim();
+  const usersTab = document.getElementById('tab-users');
+  if (!key) {
+    usersTab.classList.add('is-hidden');
+    return;
+  }
+  try {
+    const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
+    if (response.ok) {
+      usersTab.classList.remove('is-hidden');
+    } else {
+      usersTab.classList.add('is-hidden');
+      if (currentTab === 'users') switchTab('saved');
+    }
+  } catch {
+    usersTab.classList.add('is-hidden');
+  }
+}
+
+async function loadApps() {
+  const key = document.getElementById('key').value.trim();
+  const listDiv = document.getElementById('apps-list');
+  if (!key) {
+    listDiv.innerHTML = '<p class="has-text-grey-light is-italic">Введите ключ чтобы увидеть приложения...</p>';
+    return;
+  }
+  try {
+    const response = await fetch(`/api/apps?key=${encodeURIComponent(key)}`);
+    if (!response.ok) {
+      listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки приложений</p>';
+      return;
+    }
+    const apps = await response.json();
+    if (!apps.length) {
+      listDiv.innerHTML = '<p class="has-text-grey-light is-italic">Список пуст</p>';
+      return;
+    }
+    listDiv.innerHTML = apps.map(a => {
+      const href = a.user_id === 1 ? `/p/${a.slug}` : `/p${a.user_id}/${a.slug}`;
+      return `<div class="box p-3 mb-3"><div class="is-flex is-justify-content-space-between is-align-items-center"><div><strong>${a.slug}</strong><div class="is-size-7 has-text-grey">${href}</div></div><a class="button is-small is-link is-light" href="${href}" target="_blank">Открыть</a></div></div>`;
+    }).join('');
+  } catch {
+    listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки приложений</p>';
+  }
+}
+
+async function saveApp() {
+  const key = document.getElementById('key').value.trim();
+  const slug = document.getElementById('app-slug').value.trim();
+  const html = document.getElementById('code').value;
+  if (!key || !slug) {
+    alert('Нужны ключ и имя ссылки');
+    return;
+  }
+  const response = await fetch('/api/apps', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, slug, html })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.detail || 'Ошибка сохранения');
+    return;
+  }
+  await loadApps();
+}
+
+function generateUUIDKey() {
+  const value = `mini${crypto.randomUUID().replaceAll('-', '').slice(0, 28)}`;
+  document.getElementById('new-user-key').value = value;
+}
+
+async function loadUsers() {
+  const key = document.getElementById('key').value.trim();
+  const listDiv = document.getElementById('users-list');
+  if (!key) {
+    listDiv.innerHTML = '<p class="has-text-grey-light">Введите admin ключ</p>';
+    return;
+  }
+  try {
+    const response = await fetch(`/api/users?key=${encodeURIComponent(key)}`);
+    if (!response.ok) {
+      listDiv.innerHTML = '<p class="has-text-danger">Нет доступа к списку пользователей</p>';
+      return;
+    }
+    const users = await response.json();
+    const rows = users.map(u => {
+      const s = u.stats || {};
+      return `<tr><td>${u.id}</td><td><code>${u.key}</code></td><td>${u.comment || ''}</td><td>${s.generated || 0}</td><td>${s.view_stateless || 0}</td><td>${s.apps_count || 0}</td><td>${s.view_persistent || 0}</td></tr>`;
+    }).join('');
+    listDiv.innerHTML = `<div class="table-container"><table class="table is-fullwidth is-striped is-hoverable"><thead><tr><th>ID</th><th>Key</th><th>Comment</th><th>Gen</th><th>View URL</th><th>Apps</th><th>View /p</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  } catch {
+    listDiv.innerHTML = '<p class="has-text-danger">Ошибка загрузки пользователей</p>';
+  }
+}
+
+async function createUser() {
+  const adminKey = document.getElementById('key').value.trim();
+  const key = document.getElementById('new-user-key').value.trim();
+  const comment = document.getElementById('new-user-comment').value.trim();
+  if (!adminKey || !key) {
+    alert('Нужны admin key и новый ключ');
+    return;
+  }
+  const response = await fetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ admin_key: adminKey, key, comment })
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    alert(data.detail || 'Ошибка создания пользователя');
+    return;
+  }
+  document.getElementById('new-user-key').value = '';
+  document.getElementById('new-user-comment').value = '';
+  await loadUsers();
+}
 """
 
 
@@ -194,6 +343,7 @@ def render_admin_page() -> str:
                                     id="key",
                                     placeholder="Введите ваш секретный ключ",
                                     cls="input is-medium",
+                                    oninput="onKeyChange()",
                                 ),
                                 Span(
                                     I(cls="ph ph-eye", id="eye-icon"),
@@ -258,6 +408,110 @@ def render_admin_page() -> str:
                             ),
                             id="result",
                             cls="box mt-5 is-hidden",
+                        ),
+                        Div(
+                            Button(
+                                Span(I(cls="ph ph-gear"), cls="icon"),
+                                Span("Расширенная админка"),
+                                id="advanced-btn",
+                                cls="button is-light is-fullwidth mt-4",
+                                onclick="toggleAdvancedPanel()",
+                            ),
+                        ),
+                        Div(
+                            Div(
+                                NotStr(
+                                    """<div class="tabs is-centered mt-4"><ul><li id="tab-saved" class="is-active"><a onclick="switchTab('saved')">Сохраненные (DB)</a></li><li id="tab-users" class="is-hidden"><a onclick="switchTab('users')">Пользователи</a></li></ul></div>"""
+                                )
+                            ),
+                            Div(
+                                Div(
+                                    Div(
+                                        Input(
+                                            cls="input",
+                                            type="text",
+                                            id="app-slug",
+                                            placeholder="Имя ссылки (например, my-app)",
+                                        ),
+                                        cls="control is-expanded",
+                                    ),
+                                    Div(
+                                        Button(
+                                            Span(
+                                                I(cls="ph ph-floppy-disk"), cls="icon"
+                                            ),
+                                            Span("Сохранить"),
+                                            id="save-btn",
+                                            cls="button is-primary",
+                                            onclick="saveApp()",
+                                        ),
+                                        cls="control",
+                                    ),
+                                    cls="field has-addons mt-4",
+                                ),
+                                P(
+                                    NotStr(
+                                        "Приложение будет доступно по адресу <code>/p{id}/{имя}</code>"
+                                    ),
+                                    id="editing-status",
+                                    cls="help mb-5",
+                                ),
+                                Div(id="apps-list", cls="mt-4"),
+                                id="content-saved",
+                            ),
+                            Div(
+                                H1("Управление Пользователями", cls="title is-6 mt-4"),
+                                Div(
+                                    Div(
+                                        Label("Новый Ключ", cls="label"),
+                                        Div(
+                                            Input(
+                                                cls="input",
+                                                type="text",
+                                                id="new-user-key",
+                                                placeholder="Введите ключ или нажмите генерацию",
+                                            ),
+                                            Div(
+                                                Button(
+                                                    Span(
+                                                        I(cls="ph ph-arrows-clockwise"),
+                                                        cls="icon",
+                                                    ),
+                                                    cls="button is-info",
+                                                    onclick="generateUUIDKey()",
+                                                ),
+                                                cls="control",
+                                            ),
+                                            cls="control has-addons",
+                                        ),
+                                        cls="field",
+                                    ),
+                                    Div(
+                                        Label("Комментарий", cls="label"),
+                                        Div(
+                                            Input(
+                                                cls="input",
+                                                type="text",
+                                                id="new-user-comment",
+                                                placeholder="Имя пользователя или описание",
+                                            ),
+                                            cls="control",
+                                        ),
+                                        cls="field",
+                                    ),
+                                    Button(
+                                        "Создать пользователя",
+                                        cls="button is-primary is-fullwidth",
+                                        onclick="createUser()",
+                                    ),
+                                    cls="box has-background-light",
+                                ),
+                                Div(id="users-list"),
+                                id="content-users",
+                                cls="is-hidden",
+                            ),
+                            id="advanced-panel",
+                            cls="is-hidden",
                         ),
                         cls="box",
                     ),

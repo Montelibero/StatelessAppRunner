@@ -36,6 +36,8 @@ Use `Justfile` as the single entry point:
 - Do not silently change contracts.
 - Do not bypass failing checks by removing tests or guards.
 - New dependency or architecture shift should be documented in `adr/`.
+- Do not add any new text, warnings, limits, UI copy, or behavior that the user did not explicitly request.
+- If a new idea appears during implementation, propose it first and wait for explicit user confirmation (`+`) before applying it.
 
 ## Source Of Truth Docs
 - `docs/architecture.md`

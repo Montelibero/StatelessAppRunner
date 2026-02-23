@@ -3,6 +3,8 @@ import os
 import datetime
 import logging
 import threading
+import hashlib
+import secrets
 from typing import List, Optional, Dict
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "apps.db")
@@ -136,6 +138,62 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
+
+    # 4. Agent-first additive tables
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_id TEXT UNIQUE NOT NULL,
+            name TEXT,
+            secret_hash TEXT NOT NULL,
+            created_at TIMESTAMP,
+            last_seen_at TIMESTAMP,
+            is_active INTEGER NOT NULL DEFAULT 1
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agent_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_ref_id INTEGER NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP,
+            expires_at TIMESTAMP,
+            revoked_at TIMESTAMP,
+            FOREIGN KEY (agent_ref_id) REFERENCES agents(id)
+        )
+        """
+    )
+
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS agent_apps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            agent_ref_id INTEGER NOT NULL,
+            slug TEXT NOT NULL,
+            html_content BLOB NOT NULL,
+            content_encoding TEXT NOT NULL DEFAULT 'identity',
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP,
+            last_accessed_at TIMESTAMP,
+            UNIQUE(agent_ref_id, slug),
+            FOREIGN KEY (agent_ref_id) REFERENCES agents(id)
+        )
+        """
+    )
+
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_apps_last_accessed ON agent_apps(last_accessed_at)"
+    )
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_apps_owner ON agent_apps(agent_ref_id)"
+    )
+    c.execute(
+        "CREATE INDEX IF NOT EXISTS idx_agent_tokens_owner ON agent_tokens(agent_ref_id)"
+    )
 
     conn.commit()
 
@@ -388,3 +446,209 @@ def get_users_stats() -> Dict[int, dict]:
         stats[uid]["apps_count"] = count
 
     return stats
+
+
+# --- Agent-first auth and app helpers ---
+
+
+def _sha256_hex(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def create_or_get_agent(agent_id: str, secret: str, name: Optional[str] = None) -> dict:
+    conn = get_connection()
+    now = _utc_now_iso()
+    secret_hash = _sha256_hex(secret)
+
+    with conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM agents WHERE agent_id = ?", (agent_id,))
+        row = c.fetchone()
+        if row:
+            c.execute(
+                """
+                UPDATE agents
+                SET secret_hash = ?, name = COALESCE(?, name), last_seen_at = ?, is_active = 1
+                WHERE id = ?
+                """,
+                (secret_hash, name, now, row["id"]),
+            )
+            c.execute("SELECT * FROM agents WHERE id = ?", (row["id"],))
+            updated = c.fetchone()
+            return dict(updated) if updated else dict(row)
+
+        c.execute(
+            """
+            INSERT INTO agents (agent_id, name, secret_hash, created_at, last_seen_at, is_active)
+            VALUES (?, ?, ?, ?, ?, 1)
+            """,
+            (agent_id, name, secret_hash, now, now),
+        )
+        agent_ref_id = c.lastrowid
+        if agent_ref_id is None:
+            raise RuntimeError("Failed to create agent")
+        c.execute("SELECT * FROM agents WHERE id = ?", (agent_ref_id,))
+        created = c.fetchone()
+        if not created:
+            raise RuntimeError("Failed to load created agent")
+        return dict(created)
+
+
+def get_agent_by_agent_id(agent_id: str) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM agents WHERE agent_id = ? LIMIT 1", (agent_id,))
+    row = c.fetchone()
+    return dict(row) if row else None
+
+
+def get_agent_by_id(agent_ref_id: int) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM agents WHERE id = ? LIMIT 1", (agent_ref_id,))
+    row = c.fetchone()
+    return dict(row) if row else None
+
+
+def issue_agent_token(agent_ref_id: int, expires_at: Optional[str] = None) -> str:
+    conn = get_connection()
+    now = _utc_now_iso()
+    token = secrets.token_urlsafe(32)
+    token_hash = _sha256_hex(token)
+
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            """
+            INSERT INTO agent_tokens (agent_ref_id, token_hash, created_at, expires_at, revoked_at)
+            VALUES (?, ?, ?, ?, NULL)
+            """,
+            (agent_ref_id, token_hash, now, expires_at),
+        )
+    return token
+
+
+def get_agent_by_token(token: str) -> Optional[dict]:
+    token_hash = _sha256_hex(token)
+    now = _utc_now_iso()
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT a.*
+        FROM agent_tokens t
+        JOIN agents a ON a.id = t.agent_ref_id
+        WHERE t.token_hash = ?
+          AND t.revoked_at IS NULL
+          AND (t.expires_at IS NULL OR t.expires_at > ?)
+          AND a.is_active = 1
+        LIMIT 1
+        """,
+        (token_hash, now),
+    )
+    row = c.fetchone()
+    return dict(row) if row else None
+
+
+def save_agent_app(
+    agent_ref_id: int,
+    slug: str,
+    html_content: bytes | str,
+    *,
+    content_encoding: str = "identity",
+) -> None:
+    conn = get_connection()
+    now = _utc_now_iso()
+    payload = html_content
+    if isinstance(payload, str):
+        payload = payload.encode("utf-8")
+
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            "SELECT id FROM agent_apps WHERE agent_ref_id = ? AND slug = ?",
+            (agent_ref_id, slug),
+        )
+        row = c.fetchone()
+        if row:
+            c.execute(
+                """
+                UPDATE agent_apps
+                SET html_content = ?, content_encoding = ?, updated_at = ?
+                WHERE agent_ref_id = ? AND slug = ?
+                """,
+                (payload, content_encoding, now, agent_ref_id, slug),
+            )
+        else:
+            c.execute(
+                """
+                INSERT INTO agent_apps (
+                    agent_ref_id, slug, html_content, content_encoding, created_at, updated_at, last_accessed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (agent_ref_id, slug, payload, content_encoding, now, now, now),
+            )
+
+
+def list_agent_apps(agent_ref_id: int) -> List[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT slug, updated_at, last_accessed_at, content_encoding, LENGTH(CAST(html_content AS BLOB)) AS html_bytes
+        FROM agent_apps
+        WHERE agent_ref_id = ?
+        ORDER BY updated_at DESC
+        """,
+        (agent_ref_id,),
+    )
+    return [dict(row) for row in c.fetchall()]
+
+
+def get_agent_app(agent_ref_id: int, slug: str) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        "SELECT * FROM agent_apps WHERE agent_ref_id = ? AND slug = ?",
+        (agent_ref_id, slug),
+    )
+    row = c.fetchone()
+    return dict(row) if row else None
+
+
+def get_agent_app_by_agent_id(agent_id: str, slug: str) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT aa.*, a.agent_id
+        FROM agent_apps aa
+        JOIN agents a ON a.id = aa.agent_ref_id
+        WHERE a.agent_id = ? AND aa.slug = ?
+        LIMIT 1
+        """,
+        (agent_id, slug),
+    )
+    row = c.fetchone()
+    return dict(row) if row else None
+
+
+def touch_agent_app_access(agent_ref_id: int, slug: str) -> None:
+    conn = get_connection()
+    now = _utc_now_iso()
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE agent_apps SET last_accessed_at = ? WHERE agent_ref_id = ? AND slug = ?",
+            (now, agent_ref_id, slug),
+        )
+
+
+def delete_agent_app(agent_ref_id: int, slug: str) -> None:
+    conn = get_connection()
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            "DELETE FROM agent_apps WHERE agent_ref_id = ? AND slug = ?",
+            (agent_ref_id, slug),
+        )

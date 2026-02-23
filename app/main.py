@@ -17,6 +17,15 @@ from interface.routes import register_routes
 app = FastAPI(title="Stateless App Runner")
 
 
+def get_agent_app_ttl_days() -> int:
+    raw = os.getenv("AGENT_APP_TTL_DAYS", "7").strip()
+    try:
+        value = int(raw)
+    except ValueError:
+        return 7
+    return value if value > 0 else 7
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
@@ -58,13 +67,21 @@ if not DEFAULT_SECRET:
 sync_admin_key(DEFAULT_SECRET)
 
 DEFAULT_DOMAIN = os.getenv("APP_DOMAIN", "https://mtlminiapps.us")
+AGENT_APP_TTL_DAYS = get_agent_app_ttl_days()
 
-register_routes(app, default_secret=DEFAULT_SECRET, default_domain=DEFAULT_DOMAIN)
+register_routes(
+    app,
+    default_secret=DEFAULT_SECRET,
+    default_domain=DEFAULT_DOMAIN,
+    agent_app_ttl_days=AGENT_APP_TTL_DAYS,
+)
 
 __all__ = [
     "app",
     "DEFAULT_SECRET",
     "DEFAULT_DOMAIN",
+    "AGENT_APP_TTL_DAYS",
+    "get_agent_app_ttl_days",
     "sign_data",
     "compress_payload",
     "decompress_payload",

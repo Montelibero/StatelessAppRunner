@@ -230,3 +230,50 @@ def test_admin_management_safety():
     resp = client.get(f"/api/apps/tool?key={TEST_KEY}&target_user_id={uid}")
     assert resp.status_code == 200
     assert resp.json()["html_content"] == "Admin Created for User 3"
+
+
+def test_banned_user_cannot_use_api_or_open_user_links():
+    user_key = f"mini-ban-{uuid.uuid4()}"
+    created = client.post(
+        "/api/users",
+        json={"admin_key": TEST_KEY, "key": user_key, "comment": "ban target"},
+    )
+    assert created.status_code == 200
+    user_id = created.json()["id"]
+
+    generated = client.post(
+        "/api/generate",
+        json={"key": user_key, "html": "<h1>hello</h1>", "compress": False},
+    )
+    assert generated.status_code == 200
+    query_string = generated.json()["url"].split("?", 1)[1]
+
+    saved = client.post(
+        "/api/apps",
+        json={"key": user_key, "slug": "ban-user-page", "html": "<h1>persist</h1>"},
+    )
+    assert saved.status_code == 200
+
+    before_stateless = client.get(f"/?{query_string}")
+    assert before_stateless.status_code == 200
+    before_persistent = client.get(f"/p{user_id}/ban-user-page")
+    assert before_persistent.status_code == 200
+
+    banned = client.post(
+        "/admin/fragments/users/toggle",
+        data={"key": TEST_KEY, "user_id": str(user_id), "is_active": "0"},
+    )
+    assert banned.status_code == 200
+
+    denied_generate = client.post(
+        "/api/generate",
+        json={"key": user_key, "html": "<h1>blocked</h1>", "compress": False},
+    )
+    assert denied_generate.status_code == 403
+    assert "banned" in denied_generate.json()["detail"].lower()
+
+    after_stateless = client.get(f"/?{query_string}")
+    assert after_stateless.status_code == 403
+
+    after_persistent = client.get(f"/p{user_id}/ban-user-page")
+    assert after_persistent.status_code == 404

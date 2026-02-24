@@ -42,9 +42,11 @@ from db import (
     count_agent_actions_since,
     log_agent_action,
     log_action,
+    get_user_by_id,
     get_agent_by_id,
     save_app,
     save_agent_app,
+    set_user_active,
     set_agent_active,
     touch_agent_app_access,
 )
@@ -300,6 +302,11 @@ def register_routes(
                 status_code=403, detail="Integrity Check Failed (Invalid Signature)"
             )
 
+        if matched_user_id and matched_user_id != 1:
+            owner_user = get_user_by_id(matched_user_id)
+            if not owner_user or int(owner_user.get("is_active", 1)) != 1:
+                raise HTTPException(status_code=403, detail="User link is inactive")
+
         linked_agent = None
         if a:
             linked_agent = get_agent_by_agent_id(a)
@@ -331,6 +338,9 @@ def register_routes(
 
     @app.get("/p{user_id}/{slug}", response_class=HTMLResponse, include_in_schema=False)
     async def run_persistent_app_user(user_id: int, slug: str):
+        owner_user = get_user_by_id(user_id)
+        if not owner_user or int(owner_user.get("is_active", 1)) != 1:
+            raise HTTPException(status_code=404, detail="App not found")
         app_data = get_app(slug, user_id=user_id)
         if not app_data:
             raise HTTPException(status_code=404, detail="App not found")
@@ -793,6 +803,42 @@ def register_routes(
                 content=render_users_fragment(error="Ключ уже существует")
             )
 
+        return HTMLResponse(
+            content=render_users_fragment(with_user_stats(list_users()))
+        )
+
+    @app.post(
+        "/admin/fragments/users/toggle",
+        response_class=HTMLResponse,
+        include_in_schema=False,
+    )
+    async def admin_users_toggle_fragment(
+        key: str = Form(""),
+        user_id: int = Form(0),
+        is_active: int = Form(1),
+    ):
+        if not key.strip():
+            return HTMLResponse(content=render_users_fragment(error="Нужен admin ключ"))
+        try:
+            admin = get_current_user_by_key(key, default_secret)
+        except HTTPException:
+            return HTMLResponse(content=render_users_fragment(error="Неверный ключ"))
+        if admin["id"] != 1:
+            return HTMLResponse(
+                content=render_users_fragment(
+                    error="Только admin может управлять пользователями"
+                )
+            )
+        if user_id <= 0:
+            return HTMLResponse(
+                content=render_users_fragment(error="Неверный пользователь")
+            )
+        if user_id == 1:
+            return HTMLResponse(
+                content=render_users_fragment(error="Admin нельзя банить")
+            )
+
+        set_user_active(user_id, is_active == 1)
         return HTMLResponse(
             content=render_users_fragment(with_user_stats(list_users()))
         )

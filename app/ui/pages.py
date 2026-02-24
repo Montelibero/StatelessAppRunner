@@ -493,11 +493,20 @@ def render_users_fragment(
     cards = [P("Список пользователей", cls="has-text-weight-semibold mb-3")]
     for user in users:
         stats = user.get("stats", {})
+        user_id = int(user["id"])
+        is_active = int(user.get("is_active", 1)) == 1
+        toggle_to = 0 if is_active else 1
+        toggle_label = "Ban" if is_active else "Unban"
+        toggle_class = "is-danger" if is_active else "is-success"
         cards.append(
             Div(
                 Div(
                     Span(f"ID {user['id']}", cls="tag is-light"),
                     Span(user["key"], cls="ml-2 is-family-monospace"),
+                    Span(
+                        "active" if is_active else "banned",
+                        cls=f"tag ml-2 {'is-success' if is_active else 'is-danger'} is-light",
+                    ),
                     cls="mb-2",
                 ),
                 P(user.get("comment") or "", cls="is-size-7 has-text-grey mb-2"),
@@ -516,6 +525,30 @@ def render_users_fragment(
                     Span(
                         f"View /p {stats.get('view_persistent', 0)}",
                         cls="tag is-warning is-light ml-1",
+                    ),
+                    cls="mb-2",
+                ),
+                Div(
+                    Input(
+                        type="hidden",
+                        id=f"user-id-{user_id}",
+                        name="user_id",
+                        value=str(user_id),
+                    ),
+                    Input(
+                        type="hidden",
+                        id=f"user-active-{user_id}",
+                        name="is_active",
+                        value=str(toggle_to),
+                    ),
+                    Button(
+                        toggle_label,
+                        cls=f"button is-small {toggle_class} is-light",
+                        disabled="true" if user_id == 1 else None,
+                        hx_post="/admin/fragments/users/toggle",
+                        hx_include=f"#key,#user-id-{user_id},#user-active-{user_id}",
+                        hx_target="#users-list",
+                        hx_swap="innerHTML",
                     ),
                 ),
                 cls="box p-3 mb-3",

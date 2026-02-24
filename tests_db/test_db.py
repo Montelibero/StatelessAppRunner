@@ -37,6 +37,7 @@ def test_create_user_success(isolated_db):
     assert user is not None
     assert user["key"] == key
     assert user["comment"] == comment
+    assert user["is_active"] == 1
 
 
 def test_create_user_duplicate(isolated_db):

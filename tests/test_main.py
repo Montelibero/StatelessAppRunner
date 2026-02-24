@@ -312,3 +312,12 @@ def test_admin_users_create_fragment_validation_and_duplicate():
     )
     assert duplicate.status_code == 200
     assert "Ключ уже существует" in duplicate.text
+
+
+def test_admin_users_toggle_cannot_ban_admin():
+    response = client.post(
+        "/admin/fragments/users/toggle",
+        data={"key": DEFAULT_SECRET, "user_id": "1", "is_active": "0"},
+    )
+    assert response.status_code == 200
+    assert "Admin нельзя банить" in response.text

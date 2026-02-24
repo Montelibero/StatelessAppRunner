@@ -57,9 +57,22 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             key TEXT UNIQUE NOT NULL,
             comment TEXT,
-            created_at TIMESTAMP
+            created_at TIMESTAMP,
+            is_active INTEGER NOT NULL DEFAULT 1
         )
     """)
+
+    # Additive migration: existing DBs may not have users.is_active yet.
+    c.execute("PRAGMA table_info(users)")
+    user_cols = {row[1] for row in c.fetchall()}
+    if "is_active" not in user_cols:
+        try:
+            c.execute(
+                "ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
+            )
+        except sqlite3.OperationalError as exc:
+            if "duplicate column name" not in str(exc).lower():
+                raise
 
     # 1.5 Recover from a partial migration (apps_old left behind)
     c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='apps_old'")
@@ -387,6 +400,26 @@ def list_users() -> List[dict]:
     c.execute("SELECT * FROM users ORDER BY id ASC")
     rows = c.fetchall()
     return [dict(row) for row in rows]
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    if row:
+        return dict(row)
+    return None
+
+
+def set_user_active(user_id: int, is_active: bool) -> None:
+    conn = get_connection()
+    with conn:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE users SET is_active = ? WHERE id = ?",
+            (1 if is_active else 0, user_id),
+        )
 
 
 # --- Stats & Logs ---

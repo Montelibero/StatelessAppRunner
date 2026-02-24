@@ -35,3 +35,17 @@ These measurements are reference-only and were captured on one environment with
 - Python was faster than Node.js in this sample.
 - For operational tuning, adjust `AGENT_REGISTER_POW_BITS` using observed
   registration latency under your actual traffic and hardware.
+
+### Difficulty Scaling (Reference)
+
+| Difficulty | Expected hashes | Python (~2M/s) | C 16 threads (~200M/s) |
+| --- | --- | --- | --- |
+| 24 bits | 16.7M | 8 sec | 0.08 sec |
+| 28 bits | 268M | 2 min | 1.3 sec |
+| 32 bits | 4.3B | 36 min | 21 sec |
+| 36 bits | 68.7B | 9.5 hours | 5.7 min |
+| 40 bits | 1.1T | 6.4 days | 1.5 hours |
+
+Every +4 bits increases expected solve time by x16. At 40 bits, even strong
+hardware becomes expensive, while scripting-language clients become practically
+unusable for normal onboarding flows.

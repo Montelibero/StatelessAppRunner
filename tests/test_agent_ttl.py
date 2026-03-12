@@ -51,8 +51,8 @@ def test_expired_agent_page_returns_404(monkeypatch):
     old = (dt.datetime.now(dt.UTC) - dt.timedelta(days=8)).isoformat()
     with conn:
         conn.execute(
-            "UPDATE agent_apps SET last_accessed_at = ? WHERE slug = ?",
-            (old, "ttl-expired"),
+            "UPDATE agent_apps SET last_accessed_at = ?, updated_at = ? WHERE slug = ?",
+            (old, old, "ttl-expired"),
         )
 
     opened = client.get(f"/a/{agent_id}/ttl-expired")
@@ -86,3 +86,29 @@ def test_successful_open_updates_last_accessed(monkeypatch):
     after = client.get("/api/agent/apps", headers={"Authorization": f"Bearer {token}"})
     after_item = next(item for item in after.json() if item["slug"] == "ttl-live")
     assert after_item["last_accessed_at"] >= before_ts
+
+
+def test_app_not_expired_if_recently_updated(monkeypatch):
+    token, agent_id = _register_test_agent(monkeypatch)
+    create = client.post(
+        "/api/agent/apps",
+        json={"slug": "ttl-updated", "html": "<h1>updated</h1>"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert create.status_code == 200
+
+    conn = db.get_connection()
+    # last_accessed_at 10 days ago (expired)
+    old_access = (dt.datetime.now(dt.UTC) - dt.timedelta(days=10)).isoformat()
+    # updated_at is now (fresh)
+    new_update = dt.datetime.now(dt.UTC).isoformat()
+
+    with conn:
+        conn.execute(
+            "UPDATE agent_apps SET last_accessed_at = ?, updated_at = ? WHERE slug = ?",
+            (old_access, new_update, "ttl-updated"),
+        )
+
+    # Should be accessible because updated_at is fresh
+    opened = client.get(f"/a/{agent_id}/ttl-updated")
+    assert opened.status_code == 200

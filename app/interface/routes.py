@@ -252,16 +252,23 @@ def register_routes(
             raise HTTPException(status_code=403, detail="Invalid bearer token")
         return agent
 
-    def is_agent_app_expired(last_accessed_at: str | None) -> bool:
-        if not last_accessed_at:
+    def is_agent_app_expired(app_data: dict) -> bool:
+        ts_candidates = []
+        for key in ("last_accessed_at", "updated_at"):
+            val = app_data.get(key)
+            if val:
+                try:
+                    ts = dt.datetime.fromisoformat(val)
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=dt.UTC)
+                    ts_candidates.append(ts)
+                except ValueError:
+                    pass
+        if not ts_candidates:
             return False
-        try:
-            ts = dt.datetime.fromisoformat(last_accessed_at)
-        except ValueError:
-            return False
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=dt.UTC)
-        expires_at = ts + dt.timedelta(days=agent_app_ttl_days)
+
+        latest_ts = max(ts_candidates)
+        expires_at = latest_ts + dt.timedelta(days=agent_app_ttl_days)
         return dt.datetime.now(dt.UTC) > expires_at
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -576,7 +583,7 @@ def register_routes(
         owner = get_agent_by_id(app_data["agent_ref_id"])
         if not owner or owner.get("is_active") != 1:
             raise HTTPException(status_code=404, detail="App not found")
-        if is_agent_app_expired(app_data.get("last_accessed_at")):
+        if is_agent_app_expired(app_data):
             raise HTTPException(status_code=404, detail="App expired")
 
         payload = app_data["html_content"]

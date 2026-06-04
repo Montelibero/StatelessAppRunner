@@ -2,7 +2,10 @@ from pathlib import Path
 
 
 def test_skill_md_contains_required_agent_flow():
-    text = Path("app/public/skill.md").read_text(encoding="utf-8")
+    text = Path("app/public/skill/SKILL.md").read_text(encoding="utf-8")
+    assert text.startswith("---\n")
+    assert "name: stateless-app-runner" in text
+    assert "description:" in text
     assert "https://mtlminiapps.us/api/agent/generate" in text
     assert "https://mtlminiapps.us/api/agent/apps" in text
     assert "100KB" in text

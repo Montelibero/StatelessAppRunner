@@ -356,7 +356,7 @@ def register_routes(
 
     @app.get("/skill.md", response_class=PlainTextResponse, include_in_schema=False)
     async def skill_md():
-        path = app_dir / "public" / "skill.md"
+        path = app_dir / "public" / "skill" / "SKILL.md"
         if not path.exists():
             raise HTTPException(status_code=404, detail="skill.md not found")
         return PlainTextResponse(

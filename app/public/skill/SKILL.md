@@ -1,3 +1,8 @@
+---
+name: stateless-app-runner
+description: Publish agent-created HTML pages as shareable links via mtlminiapps.us — stateless (HTML embedded in the URL) or persistent (HTML stored on the server). Use when an agent needs to turn HTML into a public URL.
+---
+
 # Agent Skill
 
 ## Goal

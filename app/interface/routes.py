@@ -208,12 +208,10 @@ def register_routes(
     agent_create_rate_per_day: int = 40,
 ) -> None:
     app_dir = Path(__file__).resolve().parents[1]
-    repo_dir = app_dir.parent
 
     def _read_registration_script(filename: str) -> str:
         candidates = (
-            app_dir / "scripts" / filename,
-            repo_dir / "scripts" / filename,
+            app_dir / "public" / "skill" / "scripts" / filename,
         )
         for path in candidates:
             if path.exists():

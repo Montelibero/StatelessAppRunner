@@ -50,7 +50,7 @@ def test_llm_txt_contains_required_agent_flow():
 
 
 def test_register_agent_python_script_contains_core_steps():
-    text = Path("scripts/register_agent.py").read_text(encoding="utf-8")
+    text = Path("app/public/skill/scripts/register_agent.py").read_text(encoding="utf-8")
     assert "hashlib.sha256" in text
     assert "base64.b32encode" in text
     assert "while True" in text
@@ -60,7 +60,7 @@ def test_register_agent_python_script_contains_core_steps():
 
 
 def test_register_agent_node_script_contains_core_steps():
-    text = Path("scripts/register_agent.mjs").read_text(encoding="utf-8")
+    text = Path("app/public/skill/scripts/register_agent.mjs").read_text(encoding="utf-8")
     assert "createHash('sha256')" in text
     assert ".toString('base64')" in text or "base32" in text.lower()
     assert "while (true)" in text

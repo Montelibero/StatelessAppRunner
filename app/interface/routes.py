@@ -365,7 +365,7 @@ def register_routes(
 
     @app.get("/llm.txt", response_class=PlainTextResponse, include_in_schema=False)
     async def llm_txt():
-        path = app_dir / "public" / "llm.txt"
+        path = app_dir / "public" / "skill" / "references" / "llm.txt"
         if not path.exists():
             raise HTTPException(status_code=404, detail="llm.txt not found")
         return PlainTextResponse(

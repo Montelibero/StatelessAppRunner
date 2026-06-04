@@ -31,7 +31,7 @@ def test_skill_md_contains_required_agent_flow():
 
 
 def test_llm_txt_contains_required_agent_flow():
-    text = Path("app/public/llm.txt").read_text(encoding="utf-8")
+    text = Path("app/public/skill/references/llm.txt").read_text(encoding="utf-8")
     assert "POST https://mtlminiapps.us/api/agent/generate" in text
     assert "POST https://mtlminiapps.us/api/agent/apps" in text
     assert "100KB" in text

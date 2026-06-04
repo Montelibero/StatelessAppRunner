@@ -210,12 +210,9 @@ def register_routes(
     app_dir = Path(__file__).resolve().parents[1]
 
     def _read_registration_script(filename: str) -> str:
-        candidates = (
-            app_dir / "public" / "skill" / "scripts" / filename,
-        )
-        for path in candidates:
-            if path.exists():
-                return path.read_text(encoding="utf-8")
+        path = app_dir / "public" / "skill" / "scripts" / filename
+        if path.exists():
+            return path.read_text(encoding="utf-8")
         raise HTTPException(status_code=404, detail=f"{filename} not found")
 
     def with_user_stats(users: list[dict]) -> list[dict]:

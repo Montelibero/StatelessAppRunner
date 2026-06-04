@@ -61,6 +61,8 @@ def test_render_home_page_contains_core_markers():
         "If you're a human: share https://mtlminiapps.us/skill.md with your agent."
         in html
     )
+    assert "Install as a skill" in html
+    assert 'href="/skill.zip"' in html
     assert "Open working example" in html
     assert 'href="https://mtlminiapps.us/?d=' in html
     assert 'href="/admin"' not in html

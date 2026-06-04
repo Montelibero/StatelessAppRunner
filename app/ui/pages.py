@@ -336,6 +336,20 @@ def render_home_page() -> str:
                                         "If you're a human: share https://mtlminiapps.us/skill.md with your agent.",
                                         cls="is-size-7 has-text-grey",
                                     ),
+                                    P(
+                                        "Install as a skill",
+                                        cls="has-text-weight-semibold mt-3 mb-1",
+                                    ),
+                                    P(
+                                        NotStr(
+                                            "Agentskills.io format. Download "
+                                            '<a href="/skill.zip">/skill.zip</a> '
+                                            "and unpack it into your client's skills "
+                                            "folder (e.g. Claude Code: "
+                                            "<code>~/.claude/skills/stateless-app-runner/</code>)."
+                                        ),
+                                        cls="is-size-7 has-text-grey",
+                                    ),
                                     id="llm",
                                     cls="mb-2",
                                 ),

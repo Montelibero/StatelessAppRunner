@@ -616,6 +616,52 @@ def register_routes(
         )
 
     @app.get(
+        "/skill/SKILL.md", response_class=PlainTextResponse, include_in_schema=False
+    )
+    async def skill_package_md():
+        path = app_dir / "public" / "skill" / "SKILL.md"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="SKILL.md not found")
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"), media_type="text/markdown"
+        )
+
+    @app.get(
+        "/skill/scripts/register_agent.py",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_register_py():
+        return PlainTextResponse(
+            _read_registration_script("register_agent.py"),
+            media_type="text/plain",
+        )
+
+    @app.get(
+        "/skill/scripts/register_agent.mjs",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_register_mjs():
+        return PlainTextResponse(
+            _read_registration_script("register_agent.mjs"),
+            media_type="text/plain",
+        )
+
+    @app.get(
+        "/skill/references/llm.txt",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_llm_txt():
+        path = app_dir / "public" / "skill" / "references" / "llm.txt"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="llm.txt not found")
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"), media_type="text/plain"
+        )
+
+    @app.get(
         "/admin/fragments/apps", response_class=HTMLResponse, include_in_schema=False
     )
     async def admin_apps_fragment(key: str = ""):

@@ -64,6 +64,9 @@ def test_homepage_structure():
         "If you're a human: share https://mtlminiapps.us/skill.md with your agent."
         in response.text
     )
+    assert "Install as a skill" in response.text
+    assert "~/.claude/skills/stateless-app-runner/" in response.text
+    assert 'href="/skill.zip"' in response.text
     assert "Open working example" in response.text
     assert 'href="https://mtlminiapps.us/?d=' in response.text
     assert "View source on GitHub" in response.text

@@ -7,13 +7,15 @@ import secrets
 import string
 import datetime as dt
 import os
+import io
 import json
+import zipfile
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from application.auth import get_current_user_by_key
 from application.payload import (
@@ -208,16 +210,11 @@ def register_routes(
     agent_create_rate_per_day: int = 40,
 ) -> None:
     app_dir = Path(__file__).resolve().parents[1]
-    repo_dir = app_dir.parent
 
     def _read_registration_script(filename: str) -> str:
-        candidates = (
-            app_dir / "scripts" / filename,
-            repo_dir / "scripts" / filename,
-        )
-        for path in candidates:
-            if path.exists():
-                return path.read_text(encoding="utf-8")
+        path = app_dir / "public" / "skill" / "scripts" / filename
+        if path.exists():
+            return path.read_text(encoding="utf-8")
         raise HTTPException(status_code=404, detail=f"{filename} not found")
 
     def with_user_stats(users: list[dict]) -> list[dict]:
@@ -361,7 +358,7 @@ def register_routes(
 
     @app.get("/skill.md", response_class=PlainTextResponse, include_in_schema=False)
     async def skill_md():
-        path = app_dir / "public" / "skill.md"
+        path = app_dir / "public" / "skill" / "SKILL.md"
         if not path.exists():
             raise HTTPException(status_code=404, detail="skill.md not found")
         return PlainTextResponse(
@@ -370,7 +367,7 @@ def register_routes(
 
     @app.get("/llm.txt", response_class=PlainTextResponse, include_in_schema=False)
     async def llm_txt():
-        path = app_dir / "public" / "llm.txt"
+        path = app_dir / "public" / "skill" / "references" / "llm.txt"
         if not path.exists():
             raise HTTPException(status_code=404, detail="llm.txt not found")
         return PlainTextResponse(
@@ -618,6 +615,75 @@ def register_routes(
         return PlainTextResponse(
             _read_registration_script("register_agent.mjs"),
             media_type="text/plain",
+        )
+
+    @app.get(
+        "/skill/SKILL.md", response_class=PlainTextResponse, include_in_schema=False
+    )
+    async def skill_package_md():
+        path = app_dir / "public" / "skill" / "SKILL.md"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="SKILL.md not found")
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"), media_type="text/markdown"
+        )
+
+    @app.get(
+        "/skill/scripts/register_agent.py",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_register_py():
+        return PlainTextResponse(
+            _read_registration_script("register_agent.py"),
+            media_type="text/plain",
+        )
+
+    @app.get(
+        "/skill/scripts/register_agent.mjs",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_register_mjs():
+        return PlainTextResponse(
+            _read_registration_script("register_agent.mjs"),
+            media_type="text/plain",
+        )
+
+    @app.get(
+        "/skill/references/llm.txt",
+        response_class=PlainTextResponse,
+        include_in_schema=False,
+    )
+    async def skill_package_llm_txt():
+        path = app_dir / "public" / "skill" / "references" / "llm.txt"
+        if not path.exists():
+            raise HTTPException(status_code=404, detail="llm.txt not found")
+        return PlainTextResponse(
+            path.read_text(encoding="utf-8"), media_type="text/plain"
+        )
+
+    @app.get("/skill.zip", include_in_schema=False)
+    async def skill_zip():
+        skill_root = app_dir / "public" / "skill"
+        if not skill_root.exists():
+            raise HTTPException(status_code=404, detail="skill folder not found")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for file_path in sorted(skill_root.rglob("*")):
+                if file_path.is_file():
+                    archive.write(
+                        file_path, file_path.relative_to(skill_root).as_posix()
+                    )
+        buffer.seek(0)
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": (
+                    'attachment; filename="stateless-app-runner-skill.zip"'
+                )
+            },
         )
 
     @app.get(

@@ -1,3 +1,8 @@
+---
+name: stateless-app-runner
+description: Publish agent-created HTML pages as shareable links via mtlminiapps.us — stateless (HTML embedded in the URL) or persistent (HTML stored on the server). Use when an agent needs to turn HTML into a public URL.
+---
+
 # Agent Skill
 
 ## Goal
@@ -13,9 +18,9 @@ Canonical links:
 ## Registration
 Registration is required before any call to `/api/agent/generate` or `/api/agent/apps`.
 
-1. Run exactly one script:
-   - `https://mtlminiapps.us/scripts/register_agent.py`
-   - `https://mtlminiapps.us/scripts/register_agent.mjs`
+1. Run exactly one script (when installed as a skill, use the bundled copy in `scripts/`; otherwise fetch by URL):
+   - `scripts/register_agent.py` (or `https://mtlminiapps.us/scripts/register_agent.py`)
+   - `scripts/register_agent.mjs` (or `https://mtlminiapps.us/scripts/register_agent.mjs`)
 2. The script calls `POST https://mtlminiapps.us/api/agent/register/challenge`.
 3. The script solves PoW from the received challenge.
 4. The script calls `POST https://mtlminiapps.us/api/agent/register` with:

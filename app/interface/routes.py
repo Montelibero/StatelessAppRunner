@@ -7,13 +7,15 @@ import secrets
 import string
 import datetime as dt
 import os
+import io
 import json
+import zipfile
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse, urlunparse
 
 from fastapi import FastAPI, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 
 from application.auth import get_current_user_by_key
 from application.payload import (
@@ -659,6 +661,29 @@ def register_routes(
             raise HTTPException(status_code=404, detail="llm.txt not found")
         return PlainTextResponse(
             path.read_text(encoding="utf-8"), media_type="text/plain"
+        )
+
+    @app.get("/skill.zip", include_in_schema=False)
+    async def skill_zip():
+        skill_root = app_dir / "public" / "skill"
+        if not skill_root.exists():
+            raise HTTPException(status_code=404, detail="skill folder not found")
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for file_path in sorted(skill_root.rglob("*")):
+                if file_path.is_file():
+                    archive.write(
+                        file_path, file_path.relative_to(skill_root).as_posix()
+                    )
+        buffer.seek(0)
+        return Response(
+            content=buffer.getvalue(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": (
+                    'attachment; filename="stateless-app-runner-skill.zip"'
+                )
+            },
         )
 
     @app.get(
